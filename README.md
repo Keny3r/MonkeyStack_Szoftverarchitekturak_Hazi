@@ -1,0 +1,2 @@
+# MonkeyStack_Szoftverarchitektúrák_Házi
+Szarch
