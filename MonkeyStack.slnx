@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CharacterEngine/CharacterEngine.csproj" />
+    <Project Path="src/ConfigurationEngine/ConfigurationEngine.csproj" />
+    <Project Path="src/MonkeyStack.Core/MonkeyStack.Core.csproj" />
+    <Project Path="src/OsEventEngine/OsEventEngine.csproj" />
+  </Folder>
+</Solution>
