@@ -11,3 +11,7 @@ Konfigurációs ablak.
 ### Perzisztens tárolás
 
 SQLite adatbázis.
+
+[Séma és validálás](./schema.md)
+
+[Integráció](./integration.md)
