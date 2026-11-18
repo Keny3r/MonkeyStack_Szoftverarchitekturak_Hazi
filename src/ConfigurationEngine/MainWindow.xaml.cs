@@ -1,23 +1,25 @@
-﻿using System.Text;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+using MonkeyStack.Core.Configuration;
 
 namespace ConfigurationEngine;
 
 /// <summary>
-/// Interaction logic for MainWindow.xaml
+/// A Konfigurációs motor View ablaka.
+/// Indítható önállóan (standalone F5 teszt módban saját ConfigurationService példánnyal),
+/// vagy integráltan a közös memóriában élő IConfigurationService átadásával.
 /// </summary>
 public partial class MainWindow : Window
 {
+    public IConfigurationService ConfigurationService { get; }
+
     public MainWindow()
+        : this(null)
     {
+    }
+
+    public MainWindow(IConfigurationService? configurationService)
+    {
+        ConfigurationService = configurationService ?? new ConfigurationService();
         InitializeComponent();
     }
 }

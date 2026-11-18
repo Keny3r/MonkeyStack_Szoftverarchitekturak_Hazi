@@ -37,3 +37,8 @@ Működés közben
 1. Az [OS esemény értesítő motor](#os-esemény-értesítő-motor) értesítést küld egy érték változásáról
 2. Az [Animációs motor](#animációs-motor) ezzel az értékkel változtatja a belső állapotát, majd a teljes állapot függvényében küld egy lekérdezést a
 3. [Konfigurációs motor](#konfigurációs-motor) felé, aki visszaadja a megfelelő overlay animációt.
+
+
+### MVC architektúra
+
+[MVC architektúra és közös modell terv](./mvc_architecture.md)

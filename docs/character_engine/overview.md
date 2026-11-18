@@ -17,3 +17,9 @@ A karakter [mozgásállapotát](../../README.md#mozgásállapot-alapállapot) ke
 A karakter overlay logikája.
 - Eseményeket fogad az [OS esemény értesítő motortól](../components.md#os-esemény-értesítő-motor)
 - Lekérdezi az overlay állapotot a [Konfigurációs motortól](../components.md#konfigurációs-motor)
+
+
+## Részletes MVC terv
+
+- [Animáció modell és View](../mvc_architecture.md#animáció)
+- [Karakter és Fizika MVC terv](../mvc_architecture.md#karakter-és-fizika)
