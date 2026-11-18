@@ -11,3 +11,8 @@ Teszteléshez egy csúszkákkal ellátott ablak, ahol gyorsan lehet manipulálni
 ## Belső komponensek
 
 Az OS szintű eseményeket rögzítő komponensek.
+
+
+## Részletes MVC terv
+
+- [OS Események és Mock View MVC terv](../mvc_architecture.md#os-események)
