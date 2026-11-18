@@ -13,7 +13,7 @@ public class ConfigurationData
 
     public List<BehaviorRule> BehaviorRules { get; set; } = [];
 
-    public PhysicsSettings Physics { get; set; } = new();
+    public CharacterSettings Character { get; set; } = new();
 
     public List<MetricPolling> MetricPollings { get; set; } = [];
 }

@@ -30,17 +30,18 @@ public static class ConfigurationLimits
     // AnimationSource
     public static readonly IntRange FramePx = new(1, 1024);
     public static readonly IntRange GridCells = new(1, 64);
-    public static readonly IntRange FrameDurationMs = new(16, 5000);
-    public static readonly DoubleRange AnimationScale = new(0.1, 4.0);
+
+    // MovementAnimation, BehaviorRule
+    public static readonly DoubleRange FramesPerSecond = new(1.0, 60.0);
 
     // BehaviorRule
-    public static readonly IntRange ZOrder = new(0, 100);
+    public static readonly IntRange ZIndex = new(0, 100);
     public static readonly IntRange Priority = new(0, 100);
 
-    // PhysicsSettings
+    // CharacterSettings
+    public static readonly IntRange CharacterSizePx = new(16, 512);
     public static readonly IntRange WalkSpeedPxPerSec = new(10, 2000);
     public static readonly IntRange GravityPxPerSec2 = new(100, 10000);
-    public static readonly DoubleRange CharacterScale = new(0.25, 4.0);
 
     // MetricPolling
     public static readonly IntRange PollingIntervalMs = new(250, 60000);

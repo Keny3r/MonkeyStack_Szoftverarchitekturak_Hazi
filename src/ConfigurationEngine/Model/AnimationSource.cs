@@ -1,7 +1,10 @@
 namespace ConfigurationEngine.Model;
 
 /// <summary>
-/// Egy animációs forrás és lejátszási paraméterei.
+/// Egy animációs forrás: honnan és hogyan kell betölteni a képkockákat.
+/// A lejátszási sebesség és a rétegsorrend nem itt, hanem a felhasználás helyén
+/// (<see cref="MovementAnimation"/>, <see cref="BehaviorRule"/>) van, így ugyanaz a forrás
+/// több helyen, eltérő beállítással is használható.
 /// Leírás és érvényes értékek: docs/configuration_engine/schema.md, "AnimationSource".
 /// </summary>
 public class AnimationSource
@@ -35,16 +38,4 @@ public class AnimationSource
 
     /// <summary>A képkockák száma (az utolsó sor lehet hiányos). Csak <see cref="AnimationSourceType.SpriteSheet"/> esetén.</summary>
     public int? FrameCount { get; set; }
-
-    /// <summary>
-    /// Egy képkocka megjelenítési ideje ezredmásodpercben.
-    /// <see cref="AnimationSourceType.Gif"/> esetén opcionális; ha üres, a fájlba ágyazott időzítés érvényes.
-    /// </summary>
-    public int? FrameDurationMs { get; set; }
-
-    /// <summary>Ismétlődjön-e az animáció.</summary>
-    public bool Loop { get; set; } = true;
-
-    /// <summary>Az animáció nagyítása.</summary>
-    public double Scale { get; set; } = 1.0;
 }

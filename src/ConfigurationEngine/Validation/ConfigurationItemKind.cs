@@ -8,6 +8,6 @@ public enum ConfigurationItemKind
     AnimationSource,
     MovementAnimation,
     BehaviorRule,
-    PhysicsSettings,
+    CharacterSettings,
     MetricPolling
 }

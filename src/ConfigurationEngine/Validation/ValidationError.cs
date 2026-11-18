@@ -6,7 +6,7 @@ namespace ConfigurationEngine.Validation;
 /// <param name="Kind">Az érintett elem típusa.</param>
 /// <param name="ItemKey">
 /// Az elem kulcsa: <c>Id</c> (<see cref="ConfigurationItemKind.AnimationSource"/>, <see cref="ConfigurationItemKind.BehaviorRule"/>),
-/// a <c>MovementState</c> vagy a <c>Metric</c> neve, illetve <c>"1"</c> a <see cref="ConfigurationItemKind.PhysicsSettings"/> esetén.
+/// a <c>MovementState</c> vagy a <c>Metric</c> neve, illetve <c>"1"</c> a <see cref="ConfigurationItemKind.CharacterSettings"/> esetén.
 /// Új, még nem mentett elemnél (Id = 0) a listabeli index, <c>"#index"</c> alakban.
 /// </param>
 /// <param name="PropertyName">Az érintett mező neve (pl. <c>nameof(BehaviorRule.Threshold)</c>); <c>null</c>, ha az elem egészére vonatkozik.</param>

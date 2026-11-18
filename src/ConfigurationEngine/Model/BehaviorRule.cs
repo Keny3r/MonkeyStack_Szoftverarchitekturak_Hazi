@@ -28,8 +28,13 @@ public class BehaviorRule
     /// <summary>A teljesüléskor megjelenő overlay <see cref="AnimationSource"/> azonosítója.</summary>
     public int AnimationSourceId { get; set; }
 
-    /// <summary>Kirajzolási sorrend: a nagyobb érték kerül felülre.</summary>
-    public int ZOrder { get; set; }
+    /// <summary>Lejátszási sebesség, képkocka / másodperc (<see cref="MonkeyStack.Core.Animation.IAnimation.FramesPerSecond"/>).</summary>
+    public double FramesPerSecond { get; set; } = 10.0;
+
+    /// <summary>
+    /// Rétegsorrend (<see cref="MonkeyStack.Core.Animation.IAnimation.ZIndex"/>): a nagyobb érték kerül felülre.
+    /// </summary>
+    public int ZIndex { get; set; }
 
     /// <summary>
     /// Kizáró csoport neve. Azonos csoportból egyszerre csak a legnagyobb <see cref="Priority"/>-jú
