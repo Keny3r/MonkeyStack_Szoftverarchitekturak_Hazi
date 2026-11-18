@@ -125,8 +125,27 @@ public class Animation : IAnimation
     }
 
     /// <summary>
-    /// Lecseréli az animáció képkockáit és/vagy a skálázott méretét (pl. amikor a Config menüben
-    /// új animációt töltenek fel vagy átállítják a globális karakter-képméretet).
+    /// Frissíti az animáció méretét (pl. amikor a Config menüben átállítják a globális karakter-képméretet).
+    /// </summary>
+    public void SetSize(int width, int height)
+    {
+        lock (_syncRoot)
+        {
+            if (width > 0)
+            {
+                _width = width;
+            }
+
+            if (height > 0)
+            {
+                _height = height;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Lecseréli az animáció képkockáit és a skálázott méretét (pl. amikor a Config menüben
+    /// új animációt töltenek fel vagy újraméretezik a bitmapeket).
     /// </summary>
     public void SetFrames(IReadOnlyList<BitmapSource> frames, int width, int height)
     {

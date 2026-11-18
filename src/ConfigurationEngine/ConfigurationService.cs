@@ -10,8 +10,9 @@ using MonkeyStack.Core.Events;
 /// Feladata:
 /// 1. Viselkedési szabályok és animációs beállítások betöltése/mentése (SQLite).
 /// 2. A képek fix méretűre (CharacterWidth x CharacterHeight) skálázása és Animation objektumok létrehozása.
-/// 3. Az összes Animation objektum folyamatos pörgetése (Update).
-/// 4. Állapotmentes kiértékelés: a Karakter által lekérdezett mozgás- és overlay animációk visszaadása.
+/// 3. Az összes Animation objektum folyamatos pörgetése (UpdateAnimations).
+/// 4. Állapotmentes kiértékelés: a Karakter által lekérdezett mozgás- (1 db IAnimation)
+///    és overlay animációk (ZIndex szerint rendezett IReadOnlyList&lt;IAnimation&gt;) visszaadása.
 /// </summary>
 public class ConfigurationService : IConfigurationService
 {
@@ -26,27 +27,43 @@ public class ConfigurationService : IConfigurationService
     public int CharacterWidth
     {
         get { lock (_syncRoot) { return _characterWidth; } }
-        set
-        {
-            lock (_syncRoot)
-            {
-                _characterWidth = value > 0 ? value : 100;
-            }
-            OnConfigurationChanged();
-        }
+        set => SetCharacterSize(value, CharacterHeight);
     }
 
     public int CharacterHeight
     {
         get { lock (_syncRoot) { return _characterHeight; } }
-        set
+        set => SetCharacterSize(CharacterWidth, value);
+    }
+
+    /// <summary>
+    /// Beállítja a karakter és az összes overlay animáció egységes méretét (pl. 100x100 px),
+    /// átméretezi a regisztrált animációkat, és elsüti a ConfigurationChanged eseményt.
+    /// </summary>
+    public void SetCharacterSize(int width, int height)
+    {
+        lock (_syncRoot)
         {
-            lock (_syncRoot)
+            if (width > 0)
             {
-                _characterHeight = value > 0 ? value : 100;
+                _characterWidth = width;
             }
-            OnConfigurationChanged();
+
+            if (height > 0)
+            {
+                _characterHeight = height;
+            }
+
+            foreach (var animation in _allAnimations)
+            {
+                animation.SetSize(_characterWidth, _characterHeight);
+            }
+
+            // TODO (Config csapat): Ha a nyers képekből újra kell skálázni a BitmapSource képkockákat,
+            // itt hívható az animation.SetFrames(rescaledFrames, _characterWidth, _characterHeight).
         }
+
+        OnConfigurationChanged();
     }
 
     /// <summary>
@@ -60,7 +77,7 @@ public class ConfigurationService : IConfigurationService
         lock (_syncRoot)
         {
             // TODO (Config csapat): A betöltött viselkedési szabályok (triggerfeltételek) kiértékelése
-            // a registry értékei alapján, majd a teljesülő szabályokhoz tartozó animációk
+            // a registry értékei alapján, majd a teljesülő szabályokhoz tartozó IAnimation objektumok
             // ZIndex szerint rendezett (.OrderBy(a => a.ZIndex).ToList()) visszaadása.
             return Array.Empty<IAnimation>();
         }
@@ -91,6 +108,9 @@ public class ConfigurationService : IConfigurationService
         }
     }
 
+    /// <summary>
+    /// Elsüti a ConfigurationChanged eseményt (hívandó szabály/animáció módosításakor is).
+    /// </summary>
     protected virtual void OnConfigurationChanged()
     {
         ConfigurationChanged?.Invoke(this, EventArgs.Empty);

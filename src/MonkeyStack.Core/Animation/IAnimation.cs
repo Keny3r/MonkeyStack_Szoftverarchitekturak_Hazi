@@ -46,6 +46,11 @@ public interface IAnimation
     int ZIndex { get; set; }
 
     /// <summary>
+    /// Frissíti az animáció megjelenítési méretét (pl. amikor a Config menüben átállítják a karakter méretét).
+    /// </summary>
+    void SetSize(int width, int height);
+
+    /// <summary>
     /// Lépteti a folyamatosan loopoló animációt az eltelt idő függvényében.
     /// </summary>
     void Update(TimeSpan deltaTime);

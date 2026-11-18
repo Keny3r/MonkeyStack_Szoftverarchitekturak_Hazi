@@ -22,7 +22,24 @@ public class OsEventMonitorService
         Notifier = notifier ?? new OsEventNotifier();
     }
 
-    // TODO (OS Event csapat): Háttérszálú rendszeresemény-figyelők (CPU, RAM, Disk, Battery,
-    // WindowCount, Time, Inactivity) implementálása, amelyek (!IsMockModeEnabled esetén)
-    // meghívják a Notifier.Notify...Changed(...) metódusokat.
+    /// <summary>
+    /// Példa a valódi OS monitorozó szálak számára: csak akkor küld értesítést, ha nincs bekapcsolva a Mock mód.
+    /// (Az OS Event csapat ugyanígy hívhatja a Memory, Disk, Battery, WindowCount, Time, Inactivity metrikákra is.)
+    /// </summary>
+    public void ReportRealCpuUsage(int usagePercent)
+    {
+        if (!IsMockModeEnabled)
+        {
+            Notifier.NotifyCpuChanged(new CpuEventData { UsagePercent = usagePercent });
+        }
+    }
+
+    /// <summary>
+    /// Példa a Mock / Tesztelő View csúszkái számára: bekapcsolja a Mock módot és közvetlenül értesíti a rendszert.
+    /// </summary>
+    public void ReportMockCpuUsage(int usagePercent)
+    {
+        IsMockModeEnabled = true;
+        Notifier.NotifyCpuChanged(new CpuEventData { UsagePercent = usagePercent });
+    }
 }
