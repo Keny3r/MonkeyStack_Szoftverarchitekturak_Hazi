@@ -121,4 +121,5 @@ Az operációs rendszerben futó ablakok felső éle/fejléce, amelyet a program
 ## Komponensek
 
 [Áttekintés](./docs/components.md)
+[MVC architektúra és közös modell terv](./docs/mvc_architecture.md)
 

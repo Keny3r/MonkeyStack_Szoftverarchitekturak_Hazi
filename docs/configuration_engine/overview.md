@@ -14,4 +14,8 @@ SQLite adatbázis.
 
 [Séma és validálás](./schema.md)
 
-[Integráció](./integration.md)
+
+## Részletes MVC terv
+
+- [Config Engine MVC terv](../mvc_architecture.md#config-engine)
+- [Animáció modell és View](../mvc_architecture.md#animáció)
