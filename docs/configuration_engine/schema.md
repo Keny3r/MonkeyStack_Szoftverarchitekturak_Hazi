@@ -1,8 +1,8 @@
 ## Konfigurációs séma és validálás
 
-Ez a dokumentum rögzíti, hogy a [Konfigurációs motor](../components.md#konfigurációs-motor) **mit enged konfigurálni**, milyen formában tárolja (SQLite), és milyen szabályok szerint validálja az adatokat. Erre a sémára épül a másik két komponens is: az [Animációs motor](../components.md#animációs-motor) ebből kapja az animációkat, az [OS esemény értesítő motor](../components.md#os-esemény-értesítő-motor) pedig a mintavételezési beállításokat.
+Ez a dokumentum rögzíti, hogy a [Konfigurációs motor](../components.md#konfigurációs-motor) **mit enged konfigurálni**, milyen formában tárolja (SQLite), és milyen szabályok szerint validálja az adatokat. Ebből állítja elő a motor az [Animációs motor](../components.md#animációs-motor) számára az animációkat, és ezek a beállítások határozzák meg a fizikai paramétereket és az [OS esemény értesítő motor](../components.md#os-esemény-értesítő-motor) mintavételezési gyakoriságát is.
 
-Fogalmak: [Szótár](../../README.md#szótár). Komponens áttekintés: [overview.md](./overview.md). Kapcsolat a többi komponenssel: [Integráció](./integration.md).
+Fogalmak: [Szótár](../../README.md#szótár). Komponens áttekintés: [overview.md](./overview.md). A komponensek közös modellje: [MVC architektúra](../mvc_architecture.md#config-engine).
 
 ---
 
@@ -12,10 +12,10 @@ A konfiguráció öt részből áll:
 
 | Rész | Tábla | Mit ír le |
 |---|---|---|
-| [Animációs forrás](#1-animationsource--animációs-forrás) | `AnimationSource` | Egy [animációs forrás](../../README.md#animációs-forrás) (GIF / tileset / képsorozat-mappa) és lejátszási paraméterei |
-| [Mozgási animáció](#2-movementanimation--mozgásállapot-animációja) | `MovementAnimation` | Melyik [mozgásállapothoz](../../README.md#mozgásállapot-alapállapot) melyik animáció tartozik |
-| [Viselkedési szabály](#3-behaviorrule--viselkedési-szabály) | `BehaviorRule` | [Triggerfeltétel](../../README.md#triggerfeltétel) → overlay animáció ([viselkedési szabály](../../README.md#viselkedési-szabály)) |
-| [Fizikai beállítások](#4-physicssettings--fizikai-paraméterek) | `PhysicsSettings` | Sebesség, gravitáció, méret (egysoros tábla) |
+| [Animációs forrás](#1-animationsource--animációs-forrás) | `AnimationSource` | Egy [animációs forrás](../../README.md#animációs-forrás) (GIF / tileset / képsorozat-mappa), és hogyan kell betölteni |
+| [Mozgási animáció](#2-movementanimation--mozgásállapot-animációja) | `MovementAnimation` | Melyik [mozgásállapothoz](../../README.md#mozgásállapot-alapállapot) melyik animáció tartozik, milyen sebességgel |
+| [Viselkedési szabály](#3-behaviorrule--viselkedési-szabály) | `BehaviorRule` | [Triggerfeltétel](../../README.md#triggerfeltétel) → overlay animáció ([viselkedési szabály](../../README.md#viselkedési-szabály)), sebességgel és rétegsorrenddel |
+| [Karakter beállítások](#4-charactersettings--karakter-beállítások) | `CharacterSettings` | Az animációk egységes mérete, sebesség, gravitáció, kurzorkövetés (egysoros tábla) |
 | [Mintavételezés](#5-metricpolling--rendszeresemény-mintavételezés) | `MetricPolling` | [Rendszeresemények](../../README.md#rendszeresemény--metrika-os-check) lekérdezési gyakorisága |
 
 ```mermaid
@@ -33,13 +33,11 @@ erDiagram
         int Columns "csak SpriteSheet"
         int Rows "csak SpriteSheet"
         int FrameCount "csak SpriteSheet"
-        int FrameDurationMs "GIF-nél opcionális felülírás"
-        bool Loop
-        real Scale
     }
     MovementAnimation {
         text MovementState PK "Idle | Walking | Falling | Dragging"
         int AnimationSourceId FK
+        real FramesPerSecond
     }
     BehaviorRule {
         int Id PK
@@ -50,15 +48,17 @@ erDiagram
         int Threshold
         int ThresholdUpper "csak Between"
         int AnimationSourceId FK
-        int ZOrder
+        real FramesPerSecond
+        int ZIndex
         text ExclusiveGroup "nullable"
         int Priority
     }
-    PhysicsSettings {
+    CharacterSettings {
         int Id PK "mindig 1"
+        int CharacterWidth
+        int CharacterHeight
         int WalkSpeedPxPerSec
         int GravityPxPerSec2
-        real CharacterScale
         bool FollowCursor
     }
     MetricPolling {
@@ -83,13 +83,10 @@ Az enum értékek **szövegként** tárolódnak (EF Core `HasConversion<string>(
 | `FrameWidth`, `FrameHeight` | int | csak `SpriteSheet` | 1–1024 px |
 | `Columns`, `Rows` | int | csak `SpriteSheet` | 1–64 |
 | `FrameCount` | int | csak `SpriteSheet` | 1 – `Columns × Rows` (az utolsó sor lehet hiányos) |
-| `FrameDurationMs` | int | `SpriteSheet`, `ImageFolder`: igen; `Gif`: nem | 16–5000 ms. GIF-nél ha üres, a fájlba ágyazott időzítés érvényes |
-| `Loop` | bool | igen | – |
-| `Scale` | real | igen | 0.1–4.0 (alapértelmezés 1.0) |
 
-Az overlay animáció a karakterrel azonos helyen, a karakter **fölé rajzolva** jelenik meg (a "karakter fölött" a kirajzolási sorrendre vonatkozik, nem a pozícióra), ezért nincs külön pozíció-eltolás.
+A forrás csak azt írja le, honnan és hogyan kell betölteni a képkockákat. A lejátszási sebesség és a rétegsorrend a felhasználás helyén (mozgási animáció, szabály) van, így ugyanaz a forrás több helyen, eltérő beállítással is használható.
 
-A sprite sheet képkockái balról jobbra, majd fentről lefelé haladva olvasódnak. A képsorozat-mappa fájljai természetes sorrendben (`frame2.png` < `frame10.png`) követik egymást.
+A sprite sheet képkockái balról jobbra, majd fentről lefelé haladva olvasódnak. A képsorozat-mappa fájljai természetes sorrendben (`frame2.png` < `frame10.png`) követik egymást. A GIF fájlba ágyazott időzítést nem használjuk: minden animáció a hozzá beállított, egyenletes `FramesPerSecond` sebességgel játszódik le.
 
 ### 2. `MovementAnimation` – Mozgásállapot animációja
 
@@ -97,10 +94,11 @@ A sprite sheet képkockái balról jobbra, majd fentről lefelé haladva olvasó
 |---|---|---|---|
 | `MovementState` | enum (PK) | igen | a [`MovementState`](../../src/MonkeyStack.Core/Character/MovementState.cs) értékei: `Idle`, `Walking`, `Falling`, `Dragging` |
 | `AnimationSourceId` | int (FK) | igen | létező `AnimationSource` |
+| `FramesPerSecond` | real | igen | 1–60 (alapértelmezés 10) |
 
 Minden mozgásállapothoz **pontosan egy** sor tartozik. Ha egy állapothoz nincs (érvényes) sor, a motor a beépített alapértelmezett animációt adja vissza, így a karakter sosem tűnik el.
 
-A séma irányonkénti animációt nem tárol: az egérkurzor utáni fordulás (a specifikáció szerinti "utánafordulás") megjelenítési kérdés, az Animációs motor feladata.
+A séma irányonkénti animációt nem tárol: ha a karakter balra néz, a Karakter View a karaktert és az overlay-eket is vízszintesen tükrözi ([Karakter és Fizika](../mvc_architecture.md#view-réteg-1)).
 
 ### 3. `BehaviorRule` – Viselkedési szabály
 
@@ -114,9 +112,12 @@ A séma irányonkénti animációt nem tárol: az egérkurzor utáni fordulás (
 | `Threshold` | int | igen | a metrika tartományában (lásd lent) |
 | `ThresholdUpper` | int | csak `Between` | a metrika tartományában; `Time` kivételével `≥ Threshold` |
 | `AnimationSourceId` | int (FK) | igen | létező `AnimationSource` |
-| `ZOrder` | int | igen | 0–100. Kisebb értéket rajzolunk előbb, a nagyobb kerül felülre. A konfigurációs ablak a rétegeket csökkenő `ZOrder` szerint listázza, így a specifikációnak megfelelően a legfelső réteg áll legelöl |
+| `FramesPerSecond` | real | igen | 1–60 (alapértelmezés 10) |
+| `ZIndex` | int | igen | 0–100. Kisebb értéket rajzolunk előbb, a nagyobb kerül felülre. A konfigurációs ablak a rétegeket csökkenő `ZIndex` szerint listázza, így a specifikációnak megfelelően a legfelső réteg áll legelöl |
 | `ExclusiveGroup` | text | nem | 0–32 karakter. Azonos csoportból egyszerre csak egy szabály lehet aktív |
 | `Priority` | int | igen | 0–100. Csoporton belül a nagyobb nyer |
+
+Az overlay animáció a karakterrel azonos helyen, a karakter **fölé rajzolva** jelenik meg (a "karakter fölött" a kirajzolási sorrendre vonatkozik, nem a pozícióra), ezért nincs külön pozíció-eltolás.
 
 #### Metrikák és értéktartományok
 
@@ -136,37 +137,40 @@ A metrikák a [`OsEventDataRegistry`](../../src/MonkeyStack.Core/Events/OsEventD
 
 #### Kiértékelés
 
-A séma úgy készült, hogy a README példái (*kis tűz, ha CPU > 60%; nagy tűz, ha CPU > 80%; pizsama, ha este van*) konfigurációval, kód nélkül leírhatók legyenek. Egy adott registry-állapotra a motor így számolja ki az aktív [környezeti állapotokat](../../README.md#környezeti-konfigurálható-állapot):
+A séma úgy készült, hogy a README példái (*kis tűz, ha CPU > 60%; nagy tűz, ha CPU > 80%; pizsama, ha este van*) konfigurációval, kód nélkül leírhatók legyenek. Egy adott registry-állapotra a `GetOverlayAnimations` így számolja ki az aktív [környezeti állapotokat](../../README.md#környezeti-konfigurálható-állapot):
 
 1. Csak az `IsEnabled` szabályok számítanak.
 2. Ha a szabály metrikájához még nem érkezett adat (`null` a registry-ben), a szabály nem teljesül.
 3. A teljesülő szabályokat `ExclusiveGroup` szerint csoportosítjuk. Csoportonként csak a legnagyobb `Priority` marad (egyenlőségnél a kisebb `Id`). A csoport nélküli szabályok mind megmaradnak.
-4. A maradékot `ZOrder` szerint növekvő sorrendbe rendezzük → ez az overlay-lista.
+4. A maradék szabályok animációit `ZIndex` szerint növekvő sorrendben adjuk vissza.
 
 Példa:
 
-| Name | Metric | Operator | Threshold | ExclusiveGroup | Priority | ZOrder |
+| Name | Metric | Operator | Threshold | ExclusiveGroup | Priority | ZIndex |
 |---|---|---|---|---|---|---|
 | Kis tűz | Cpu | Gt | 60 | `fire` | 10 | 20 |
 | Nagy tűz | Cpu | Gt | 80 | `fire` | 20 | 20 |
 | Pizsama | Time | Between | 1230 – 360 | – | 0 | 10 |
 
-CPU = 85%, 22:00 → aktív: *Pizsama* (ZOrder 10), majd *Nagy tűz* (ZOrder 20) → "pizsamában ég a karakter".
+CPU = 85%, 22:00 → aktív: *Pizsama* (ZIndex 10), majd *Nagy tűz* (ZIndex 20) → "pizsamában ég a karakter".
 
-### 4. `PhysicsSettings` – Fizikai paraméterek
+### 4. `CharacterSettings` – Karakter beállítások
 
 Egyetlen sor (`Id = 1`); ha hiányzik, az alapértékekkel jön létre.
 
 | Mező | Típus | Tartomány | Alapérték |
 |---|---|---|---|
+| `CharacterWidth` | int | 16–512 px | 100 |
+| `CharacterHeight` | int | 16–512 px | 100 |
 | `WalkSpeedPxPerSec` | int | 10–2000 | 120 |
 | `GravityPxPerSec2` | int | 100–10000 | 2000 |
-| `CharacterScale` | real | 0.25–4.0 | 1.0 |
 | `FollowCursor` | bool | – | igaz |
+
+A méretet az [`IConfigurationService`](../../src/MonkeyStack.Core/Configuration/IConfigurationService.cs) `CharacterWidth` és `CharacterHeight` tulajdonsága teszi elérhetővé. Módosításakor minden animáció átméreteződik, és a `ConfigurationChanged` esemény tüzel. A sebességet, a gravitációt és a kurzorkövetést a karakter fizikai modellje használja (a specifikáció szerinti "mozgási és fizikai paraméterek finomhangolása").
 
 ### 5. `MetricPolling` – Rendszeresemény-mintavételezés
 
-Metrikánként egy sor ("konfigurálható gyakoriságú monitorozás").
+Metrikánként egy sor (a specifikáció szerinti "konfigurálható gyakoriságú monitorozás"). Ez alapján kérdezi le az OS esemény értesítő motor az egyes metrikákat.
 
 | Mező | Típus | Tartomány | Alapérték |
 |---|---|---|---|
@@ -174,7 +178,18 @@ Metrikánként egy sor ("konfigurálható gyakoriságú monitorozás").
 | `IsEnabled` | bool | – | igaz |
 | `IntervalMs` | int | 250–60000 | `Cpu`, `Memory`: 1000; `Inactivity`, `WindowCount`: 2000; `Disk`, `Battery`, `Time`: 30000 |
 
-Ezeket az [OS esemény értesítő motor](../os_event_engine/overview.md) az `IPollingSettingsProvider` interfészen keresztül kapja meg, így nem függ a Konfigurációs motortól ([részletek](./integration.md#3-fizikai-és-mintavételezési-beállítások)).
+Kikapcsolt metrikát nem kérdezünk le, így a rá vonatkozó szabályok sem teljesülnek.
+
+---
+
+### Animációk előállítása
+
+A [közös modell](../mvc_architecture.md#animáció) szerint a Konfigurációs motor hozza létre és lépteti az [`Animation`](../../src/MonkeyStack.Core/Animation/Animation.cs) objektumokat; az Animációs motor kész animációkat kap:
+
+1. **Képkockák betöltése**: minden `AnimationSource` képkockáit egyszer töltjük be (`IFrameLoader`), és `CharacterWidth × CharacterHeight` méretre skálázzuk: aránytartóan, alsó-középre igazítva, a maradék területet átlátszóan kitöltve.
+2. **Animáció soronként**: minden `MovementAnimation` és `BehaviorRule` sor saját `Animation` példányt kap a saját `FramesPerSecond` és `ZIndex` értékével. A képkockák a példányok között megosztottak, így ugyanaz a forrás eltérő sebességgel és rétegben is használható.
+3. **Léptetés**: az összes animáció folyamatosan loopol; a motor `UpdateAnimations(deltaTime)` hívással lépteti őket.
+4. **Változás**: méretváltozáskor a képkockák újraskálázódnak; mentés után a motor újraépíti az animációkat. Mindkét esetben `ConfigurationChanged` tüzel, és a Karakter újra lekérdezi az animációkat.
 
 ---
 
@@ -192,7 +207,7 @@ Betöltéskor a hibás sorokat **kihagyjuk és naplózzuk**, nem állítjuk le m
 | Hibás `AnimationSource` | kimarad; az erre hivatkozó szabályok és mozgási animációk is kimaradnak |
 | Hibás `BehaviorRule` | kimarad |
 | Hiányzó / hibás `MovementAnimation` | beépített alapértelmezett animáció |
-| Hiányzó / hibás `PhysicsSettings`, `MetricPolling` sor | alapértékek |
+| Hiányzó / hibás `CharacterSettings`, `MetricPolling` sor | alapértékek |
 | Ismeretlen enum szöveg (pl. `Metric = "Gpu"`) | a sor kimarad |
 | Hiányzó vagy sérült adatbázisfájl | a sérült fájl `config.db.bak`-ként félrekerül, és egy új, alapértékekkel feltöltött adatbázis jön létre |
 
@@ -217,7 +232,7 @@ A felhasználó tetszőleges fájlt tallózhat, ezért ezek kezelése biztonság
 - **Képsorozat-mappa**: legalább 1 kép, és minden kép azonos méretű.
 - Médiafájlból **soha nem futtatunk kódot** és nem töltünk be más fájlt.
 
-A médiafájlok ellenőrzése lassú lehet, ezért mentéskor a háttérben fut. Betöltéskor csak a létezést és a méretet ellenőrizzük, a dekódolás az első lejátszáskor történik (hibánál alapértelmezett animáció).
+Mentéskor a teljes ellenőrzés a háttérben fut. Betöltéskor a tároló csak a gyors ellenőrzéseket végzi (útvonal, létezés, kiterjesztés, méret); a dekódolás a képkockák betöltésekor történik. Ha egy forrás ekkor mégsem tölthető be, a mozgásállapot a beépített alapértelmezett animációt kapja, a rá hivatkozó szabályok pedig nem jelennek meg.
 
 #### SQL injection
 
@@ -235,11 +250,11 @@ Az adatbázist kizárólag EF Core-on keresztül érjük el, ami minden lekérde
 
 ### Alkalmazott minták
 
-A [javasolt minták](../patterns.md) közül:
+A [javasolt minták](../patterns.md) közül, a [közös modell mintáival](../mvc_architecture.md#alkalmazott-architektúrális-minták) összhangban:
 
-- **Component Configurator**: a konfiguráció futás közben, újraindítás nélkül cserélhető. A konfigurációs ablakban mentett változtatás után a motor újraolvassa és validálja az adatbázist, és a következő lekérdezéstől már az új szabályok érvényesek ([a mentés útja](./integration.md#2-közös-host-alkalmazás-és-változásértesítés)). Az [`IConfigurationService`](../../src/ConfigurationEngine/IConfigurationService.cs) dokumentációja már ezt a mintát nevezi meg.
-- **Wrapper Facade**: az `IConfigurationService` mögé rejtjük az EF Core-t, az SQLite-ot és a fájlrendszert. A hívó csak metrikákat és mozgásállapotot ad át, és animáció-leírókat kap vissza.
-- **Scoped Locking** és **Thread-Safe Interface**: az OS események háttérszálról érkeznek, miközben a UI szálon mentés történhet. A betöltött konfigurációt egy **megváltoztathatatlan pillanatkép** (`ConfigurationSnapshot`) tartja. Az olvasók zár nélkül a pillanatkép aktuális referenciáját használják, a mentéseket pedig egy `lock` blokk sorosítja, amely az új pillanatképet atomikusan beállítja. A publikus metódusok így a hívó oldali szinkronizáció nélkül is szálbiztosak.
+- **Component Configurator**: a konfiguráció futás közben, újraindítás nélkül cserélhető. A konfigurációs ablakban mentett változtatás után a motor újraolvassa és validálja az adatbázist, újraépíti az animációkat, és a `ConfigurationChanged` eseménnyel jelzi a változást a Karakternek.
+- **Wrapper Facade**: az [`IConfigurationService`](../../src/MonkeyStack.Core/Configuration/IConfigurationService.cs) mögé rejtjük az EF Core-t, az SQLite-ot és a fájlrendszert. A hívó csak metrikákat és mozgásállapotot ad át, és kész, fix méretre skálázott, folyamatosan léptetett `IAnimation` objektumokat kap vissza.
+- **Monitor Object**, **Scoped Locking** és **Thread-Safe Interface**: az OS események háttérszálról érkeznek, a Karakter ~60 FPS-sel olvas, miközben a UI szálon mentés történhet. A [`ConfigurationService`](../../src/ConfigurationEngine/ConfigurationService.cs) publikus műveletei egy közös zár (`lock (_syncRoot)`) alatt futnak. Újratöltéskor az új szabályok és animációk a záron kívül készülnek el (a lassú képbetöltés nem blokkolja az olvasókat), és a zár alatt egyben cserélődnek le.
 
 ---
 
@@ -247,5 +262,6 @@ A [javasolt minták](../patterns.md) közül:
 
 - Összetett feltételek (ÉS / VAGY több metrikára) egy szabályon belül.
 - Hiszterézis vagy minimális aktív idő ("legalább N másodpercig teljesül"), hogy a határérték körül ingadozó metrika ne villogtassa az overlay-t.
+- A GIF fájlokba ágyazott, képkockánként eltérő időzítés megtartása.
 - Karaktercsomagok importálása és exportálása (zip + manifest), ugyanezzel a validálással.
 - Több konfigurációs profil, és váltás köztük.
