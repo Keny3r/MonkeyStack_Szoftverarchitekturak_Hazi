@@ -1,0 +1,42 @@
+namespace OsEventEngine;
+
+using OsEventEngine.Monitoring;
+
+/// <summary>
+/// Egy metrika monitorozási beállítása (Component Configurator: futás közben cserélhető).
+/// Megfelel a konfigurációs ág <c>MetricPolling</c> sorának, kiegészítve a belső deadbanddel.
+/// </summary>
+/// <param name="Enabled">Letiltott metrikát nem mérünk, és nem küldünk rá eseményt.</param>
+/// <param name="Interval">Mintavételi periódus (<see cref="MetricCatalog.MinIntervalMs"/>–<see cref="MetricCatalog.MaxIntervalMs"/>).</param>
+/// <param name="Deadband">Csak akkor megy ki esemény, ha |új − utolsó küldött| ≥ Deadband. Legalább 1.</param>
+public sealed record MonitorOptions(bool Enabled, TimeSpan Interval, int Deadband = 1);
+
+/// <summary>
+/// Az OS motor teljes beállítása. Az <see cref="OsEventMonitorService.Reconfigure"/> újraindítás nélkül alkalmazza.
+/// </summary>
+public sealed record OsEventEngineOptions
+{
+    /// <summary>Metrikánkénti beállítások; a hiányzó metrika az alapértékkel fut.</summary>
+    public IReadOnlyDictionary<Metric, MonitorOptions> Monitors { get; init; } = DefaultMonitors;
+
+    /// <summary>Exponenciális mozgóátlag az élő CPU értékre, hogy a tüskék ne villogtassák az overlay-t.</summary>
+    public bool EnableSmoothing { get; init; } = true;
+
+    /// <summary>Minden kimenő esemény naplózása (Debug kimenet).</summary>
+    public bool EnableLogging { get; init; }
+
+    /// <summary>Alapértelmezett beállítás: minden metrika engedélyezve, <see cref="MetricCatalog.DefaultInterval"/> periódussal.</summary>
+    public static OsEventEngineOptions Default { get; } = new();
+
+    /// <summary>Az alapértelmezett metrikánkénti beállítások.</summary>
+    public static IReadOnlyDictionary<Metric, MonitorOptions> DefaultMonitors { get; } =
+        MetricCatalog.All.ToDictionary(m => m, m => new MonitorOptions(true, MetricCatalog.DefaultInterval(m)));
+
+    /// <summary>A metrika érvényes beállítása: ha nincs megadva, az alapérték; az intervallum a megengedett tartományra vágva.</summary>
+    public MonitorOptions For(Metric metric)
+    {
+        var options = Monitors.TryGetValue(metric, out var o) ? o : DefaultMonitors[metric];
+        var ms = Math.Clamp(options.Interval.TotalMilliseconds, MetricCatalog.MinIntervalMs, MetricCatalog.MaxIntervalMs);
+        return options with { Interval = TimeSpan.FromMilliseconds(ms), Deadband = Math.Max(1, options.Deadband) };
+    }
+}
