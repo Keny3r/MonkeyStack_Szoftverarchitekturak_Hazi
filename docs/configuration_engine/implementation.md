@@ -15,7 +15,7 @@ Ez a dokumentum a [Konfigurációs motor](../components.md#konfigurációs-motor
 | [`Storage/TolerantEnumConverter.cs`](../../src/ConfigurationEngine/Storage/TolerantEnumConverter.cs) | Ismeretlen felsorolás-szöveg → nem definiált érték, amit a validátor kiszűr |
 | [`Storage/Migrations/`](../../src/ConfigurationEngine/Storage/Migrations) | EF Core migrációk |
 | [`Validation/ConfigurationValidator.cs`](../../src/ConfigurationEngine/Validation/ConfigurationValidator.cs) | Az [`IConfigurationValidator`](../../src/ConfigurationEngine/Validation/IConfigurationValidator.cs) megvalósítása: mező- és kereszthivatkozási szabályok |
-| [`Model/ConfigurationDefaults.cs`](../../src/ConfigurationEngine/Model/ConfigurationDefaults.cs) | Alapértékek: új adatbázis, illetve hiányzó vagy hibás beállítás helyett |
+| [`Model/ConfigurationDefaults.cs`](../../src/ConfigurationEngine/Model/ConfigurationDefaults.cs) | Alapértékek és a szállított alapanimációk: új adatbázis, illetve hiányzó vagy hibás sor helyett |
 | [`tests/ConfigurationEngine.Tests`](../../tests/ConfigurationEngine.Tests) | A validátor és a tároló tesztjei |
 
 Az adatbázis helye `%LOCALAPPDATA%\MonkeyStack\config.db`. A tároló minden művelethez saját kapcsolatot nyit kapcsolat-készlet nélkül, így a fájl a művelet végén felszabadul. A migráció példányonként csak az első műveletnél fut le, illetve újra, ha az adatbázisfájl közben eltűnt vagy helyreállítás miatt új jön létre.
@@ -42,6 +42,7 @@ sequenceDiagram
     end
     S->>S: hibás források kihagyása, és velük a rájuk hivatkozó sorok
     S->>S: hibás vagy hiányzó beállítások helyett alapértékek
+    S->>S: hiányzó vagy hibás mozgásállapot helyett a szállított alapanimáció
     S-->>H: ConfigurationLoadResult(adat, kihagyott elemek, DatabaseWasReset)
 ```
 
@@ -51,6 +52,8 @@ sequenceDiagram
 - Az ismeretlen felsorolás-szöveg (pl. `Metric = 'Gpu'`) nem okoz kivételt: a `TolerantEnumConverter` nem definiált értékre képezi le, a validátor jelzi, és csak az érintett sor marad ki.
 - Minden kihagyott elemhez tartozik egy [`DroppedItem`](../../src/ConfigurationEngine/Validation/DroppedItem.cs) az okokkal, ezt jeleníti meg a konfigurációs ablak. Egy hibás forrás miatt kimaradó szabálynál az ok: „A hivatkozott animációs forrás (…) érvénytelen.”
 - A hét metrika mintavételezési beállítása mindig teljes: a hiányzók alapértéket kapnak.
+- A négy mozgásállapot mozgási animációja is mindig teljes. A hiányzó vagy kihagyott állapot a szállított alapanimációt kapja ([Tárolás](./schema.md#tárolás)): a forrását a betöltött források közül típus és útvonal, ennek híján név alapján keressük. Ha nincs meg (pl. egy korábbi mentés lecserélte), a forrás ideiglenes negatív azonosítóval visszakerül, és a következő mentéskor tárolódik. A kihagyott állapotnál az okok között ott van: „Helyette az alapértékek érvényesek.” A teljesen hiányzó sort, a mintavételezéshez hasonlóan, nem jelezzük.
+- Az új adatbázis a szállított alapanimációkat az első migráció alapadataiból kapja (`HasData`): mozgásállapotonként egy képsorozat-mappa forrást rögzített azonosítóval, és a hozzá tartozó mozgási animációt. A forrásazonosítók automatikusan növekednek (`AUTOINCREMENT`), így egy törölt forrás azonosítóját az SQLite nem osztja ki újra.
 
 #### Mentés
 
