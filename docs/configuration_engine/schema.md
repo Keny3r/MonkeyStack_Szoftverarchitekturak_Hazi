@@ -194,7 +194,7 @@ A [közös modell](../mvc_architecture.md#animáció) szerint a Konfigurációs 
 3. **Léptetés**: az összes animáció folyamatosan loopol; a motor `UpdateAnimations(deltaTime)` hívással lépteti őket.
 4. **Változás**: méretváltozáskor a képkockák újraskálázódnak; mentés után a motor újraépíti az animációkat. Mindkét esetben `ConfigurationChanged` tüzel, és a Karakter újra lekérdezi az animációkat.
 
-A konfigurációs ablak élő előnézete ugyanezeket a példányokat rajzolja ki a saját [`AnimationView`](../../src/MonkeyStack.Core/Animation/AnimationView.cs)-jával: egy modell, több nézet ([Animáció](../mvc_architecture.md#animáció)). Az animációkat mindig a motor lépteti, a nézetek csak rajzolnak.
+A konfigurációs ablak élő előnézete nem ezeket a példányokat rajzolja. A motor minden előnézethez külön piszkozat példányt készít a még el nem mentett adatokból. Ez a View saját megjelenítési állapota, a karakter nem kapja meg. A piszkozatokat is a motor lépteti, a View csak rajzol, és egyik animációt sem módosítja.
 
 ---
 
