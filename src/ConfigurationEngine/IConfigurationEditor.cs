@@ -33,7 +33,8 @@ public interface IConfigurationEditor
 
     /// <summary>
     /// Egy animációs forrás teljes (<see cref="MediaValidationDepth.Full"/>) médiaellenőrzése a háttérben,
-    /// tallózás vagy csere után. A hibák kulcsa a forrás <c>Id</c>-ja (új forrásnál <c>"#index"</c>).
+    /// tallózás vagy csere után. A hibák kulcsa a forrás <c>Id</c>-ja (negatív ideiglenes azonosítónál is;
+    /// 0 azonosítójú új forrásnál a listabeli index, <c>"#index"</c> alakban).
     /// </summary>
     Task<IReadOnlyList<ValidationError>> ValidateMediaAsync(
         AnimationSource source,
@@ -42,7 +43,9 @@ public interface IConfigurationEditor
     /// <summary>
     /// Teljes ellenőrzés (validátor és minden forrás <see cref="MediaValidationDepth.Full"/> médiaellenőrzése),
     /// majd mentés: a tárolt állapotot <paramref name="data"/>-ra cseréli, így a vissza nem vett, betöltéskor
-    /// kihagyott elemek törlődnek. Sikeres mentés után a motor újraindítás nélkül újratölt
+    /// kihagyott elemek törlődnek. Az új elemek valódi azonosítóját (a negatív ideiglenes azonosítókra mutató
+    /// hivatkozásokkal együtt) a tároló visszaírja <paramref name="data"/> objektumaiba.
+    /// Sikeres mentés után a motor újraindítás nélkül újratölt
     /// (Component Configurator), és kiváltja a <c>ConfigurationChanged</c>, illetve szükség esetén a
     /// <c>PollingSettingsChanged</c> eseményt.
     /// </summary>

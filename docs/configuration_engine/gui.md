@@ -1,4 +1,4 @@
-## Konfigurációs ablak (GUI terv)
+## Konfigurációs ablak
 
 Ez a dokumentum a [Konfigurációs motor](../components.md#konfigurációs-motor) **View rétegét**, a konfigurációs ablakot írja le: milyen részekből áll, mit lehet benne beállítani, és hogyan kapcsolódik a modellhez.
 
@@ -77,7 +77,7 @@ A „Karakter” fülön, a [méret](#1-karakter-mérete) alatt. Minden [mozgás
 | Sebesség (`FramesPerSecond`) | számmező (fps) | 1–60, alapérték 10 ([`ConfigurationLimits.FramesPerSecond`](../../src/ConfigurationEngine/Model/ConfigurationLimits.cs)) |
 | Előnézet | [élő előnézet](#élő-előnézet) | – |
 
-- A legördülő lista a szerkesztett másolat forrásait mutatja, így a „Források” fülön újonnan tallózott forrás mentés előtt is azonnal választható.
+- A legördülő lista a szerkesztett másolat forrásait mutatja, így a „Források” fülön újonnan tallózott forrás mentés előtt is azonnal választható (az [ideiglenes azonosítóján](#tallózás) keresztül).
 - „Nincs animáció” lehetőség nincs: a beépített alapanimációk is animációs források ([Tárolás](./schema.md#tárolás)), így mindig választható érvényes forrás.
 - Ha egy állapot sora betöltéskor hiányzott vagy kimaradt, a karakter a beépített alapértelmezett animációt használja ([Validálás](./schema.md#validálás)). Ilyenkor a sorban üres a forrás, és a sor jelzi, hogy forrást kell választani; a hiba a [Hibajelzés](#hibajelzés) szerint jelenik meg.
 - Irányonkénti animáció nincs: balra nézéskor a Karakter View tükröz ([Karakter és Fizika](../mvc_architecture.md#view-réteg-1)), ezért az előnézet mindig a tükrözetlen képet mutatja.
@@ -124,7 +124,7 @@ Kizáró csoport: [fire ▾]      Prioritás: [20]
 | Animáció | `AnimationSourceId` | legördülő lista az [animációs források](#4-animációs-források) nevével | létező forrás |
 | Animáció | `FramesPerSecond` | számmező (fps) | 1–60, alapérték 10 |
 | Réteg | `ZIndex` | számmező | 0–100 |
-| Kizárás | `ExclusiveGroup` | szerkeszthető legördülő lista a már használt csoportnevekkel; üres = nincs csoport | 0–32 karakter |
+| Kizárás | `ExclusiveGroup` | szerkeszthető legördülő lista a már használt csoportnevekkel; üres vagy csak szóközből álló név = nincs csoport (ilyenkor a prioritás inaktív) | 0–32 karakter |
 | Kizárás | `Priority` | számmező, **csak csoport megadásakor aktív** | 0–100 |
 
 - **Mértékegység és tartomány a metrikától függ** ([`ConfigurationLimits.MetricRange`](../../src/ConfigurationEngine/Model/ConfigurationLimits.cs)): `%` (CPU, memória, háttértár, akkumulátor), `db` (ablakok száma), `perc` (inaktivitás). Metrika váltásakor a küszöbértékek megmaradnak; ha az új tartományon kívül esnek, a mező hibát jelez.
@@ -157,6 +157,7 @@ Név:     [fire_big        ]     Típus: GIF
 - **Mappa tallózása** (`OpenFolderDialog`): `ImageFolder` típusú forrás jön létre.
 - A típust a View a választásból határozza meg, ezért a részletekben csak felirat. A **Csere…** gomb ugyanilyen típusú fájlt vagy mappát enged választani.
 - Az új forrás neve a fájl vagy mappa neve; ha ez már foglalt, sorszámot kap (pl. `fire (2)`), mert a névnek egyedinek kell lennie.
+- Az új forrás egyedi, negatív **ideiglenes azonosítót** kap (`-1`, `-2`, …), így mentés előtt is hivatkozhat rá egy mozgási animáció vagy szabály. Mentéskor a tároló a valódi azonosítót a hivatkozásokkal együtt visszaírja a View objektumaiba ([Ideiglenes azonosítók](./implementation.md#ideiglenes-azonosítók)).
 - Tallózás után a View a háttérben lefuttatja a teljes médiaellenőrzést ([`IMediaValidator`](../../src/ConfigurationEngine/Validation/IMediaValidator.cs), `Full`), így a hibák (pl. hálózati útvonal, túl nagy fájl, nem dekódolható kép) már a mentés előtt megjelennek ([Médiafájlok validálása](./schema.md#médiafájlok-validálása), [Hibajelzés](#hibajelzés)). Az ellenőrzés idején a sor „ellenőrzés…” állapotot mutat, a felület nem blokkolódik.
 
 #### Részletek
@@ -255,7 +256,7 @@ A validátor gyors és mellékhatás nélküli, ezért a View minden módosítá
 
 **Megjelenítés:**
 
-- A [`ValidationError`](../../src/ConfigurationEngine/Validation/ValidationError.cs) a `Kind` + `ItemKey` + `PropertyName` hármassal azonosítja a mezőt. A View ezt a [`ValidationResult.ErrorsFor`](../../src/ConfigurationEngine/Validation/ValidationResult.cs) segítségével rendeli a mezőhöz (`ItemKey`: az `Id`, új elemnél `#index`, mozgási animációnál és mintavételezésnél az állapot / metrika neve).
+- A [`ValidationError`](../../src/ConfigurationEngine/Validation/ValidationError.cs) a `Kind` + `ItemKey` + `PropertyName` hármassal azonosítja a mezőt. A View ezt a [`ValidationResult.ErrorsFor`](../../src/ConfigurationEngine/Validation/ValidationResult.cs) segítségével rendeli a mezőhöz (`ItemKey`: az `Id`, negatív ideiglenes azonosítójú új elemnél is; 0 azonosítójú új elemnél a listabeli index, `#index` alakban; mozgási animációnál és mintavételezésnél az állapot / metrika neve).
 - A hibás mező piros keretet kap, alatta megjelenik a hibaüzenet (WPF `INotifyDataErrorInfo`). A `PropertyName = null` hibák a sor egészére vonatkoznak, ezek a részletek panel tetején jelennek meg.
 - A hibás elem sora a listában hibajelet kap, a fül fejléce pedig a hibák számát (pl. „Szabályok (2)”), így a nem látható fülek hibái sem vesznek el.
 - Amíg van hiba, a **Mentés** gomb inaktív, mellette „N hiba” felirat, amelyre kattintva a View az első hibás mezőre ugrik ([Mentés](#mentés)).
@@ -280,7 +281,7 @@ A **Mentés** gomb (és a `Ctrl+S`) akkor aktív, ha a szerkesztett másolat elt
 1. **Megerősítés kihagyott elemek esetén.** Ha betöltéskor elemek maradtak ki, a View felsorolja őket, és megerősítést kér, mert mentéskor véglegesen törlődnek ([Kihagyott elemek](#kihagyott-elemek)).
 2. **Zárolás.** A szerkesztés a mentés idejére tiltott, az ablak alján „Mentés…” állapot látszik. A felület nem fagy le, mert a további lépések a háttérben futnak.
 3. **Teljes ellenőrzés.** Lefut a validátor és minden forrásra a `Full` médiaellenőrzés ([Validálás](./schema.md#validálás)). Ha hibát talál, a mentés megszakad, semmi nem tárolódik, és a hibák a mezőknél jelennek meg.
-4. **Tárolás.** A View az [`IConfigurationEditor.SaveAsync`](../../src/ConfigurationEngine/IConfigurationEditor.cs) hívással átadja a szerkesztett másolatot, a modell pedig az [`IConfigurationStore.SaveAsync`](../../src/ConfigurationEngine/Storage/IConfigurationStore.cs) hívással lecseréli a tárolt állapotot. Az új elemek itt kapnak azonosítót.
+4. **Tárolás.** A View az [`IConfigurationEditor.SaveAsync`](../../src/ConfigurationEngine/IConfigurationEditor.cs) hívással átadja a szerkesztett másolatot, a modell pedig az [`IConfigurationStore.SaveAsync`](../../src/ConfigurationEngine/Storage/IConfigurationStore.cs) hívással lecseréli a tárolt állapotot. Az új elemek itt kapnak valódi azonosítót, amelyet a tároló a hivatkozásokkal együtt visszaír a View objektumaiba ([Ideiglenes azonosítók](./implementation.md#ideiglenes-azonosítók)).
 5. **Újratöltés a motorban** ([Component Configurator](./schema.md#alkalmazott-minták)). A tároló `Changed` eseményére a szolgáltatás újraolvassa a konfigurációt, újraépíti az animációkat, és kiváltja a `ConfigurationChanged` eseményt (a Karakternek), illetve – ha a mintavételezés változott – a `PollingSettingsChanged` eseményt (az OS motornak). A View ebben a lépésben nem vesz részt.
 6. **A View frissítése.** A View újra betölti a mentett állapotot (az új azonosítókkal), lecseréli vele a szerkesztett másolatot, újraépíti az [előnézeteket](#élő-előnézet), és „Mentve” állapotot mutat. A kihagyott elemek listája kiürül.
 
