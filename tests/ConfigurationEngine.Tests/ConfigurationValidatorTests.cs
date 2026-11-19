@@ -187,6 +187,15 @@ public class ConfigurationValidatorTests
         AssertSingleError(data, ConfigurationItemKind.MovementAnimation, nameof(MovementState.Walking), nameof(MovementAnimation.MovementState));
     }
 
+    [Fact]
+    public void MissingMovementState_IsRejected()
+    {
+        var data = TestData.ValidConfiguration();
+        data.MovementAnimations.RemoveAll(m => m.MovementState == MovementState.Falling);
+
+        AssertSingleError(data, ConfigurationItemKind.MovementAnimation, nameof(MovementState.Falling), nameof(MovementAnimation.AnimationSourceId));
+    }
+
     [Theory]
     [InlineData(0.0)]
     [InlineData(61.0)]
@@ -194,7 +203,7 @@ public class ConfigurationValidatorTests
     public void FramesPerSecondOutsideRange_IsRejected(double fps)
     {
         var data = TestData.ValidConfiguration();
-        data.MovementAnimations[0].FramesPerSecond = fps;
+        data.MovementAnimations.Single(m => m.MovementState == MovementState.Walking).FramesPerSecond = fps;
 
         AssertSingleError(data, ConfigurationItemKind.MovementAnimation, nameof(MovementState.Walking), nameof(MovementAnimation.FramesPerSecond));
     }

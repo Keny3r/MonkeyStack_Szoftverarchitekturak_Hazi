@@ -143,6 +143,14 @@ public sealed class ConfigurationValidator : IConfigurationValidator
             CheckSourceReference(movement.AnimationSourceId, sourceIds, nameof(MovementAnimation.AnimationSourceId), add);
             CheckRange(movement.FramesPerSecond, ConfigurationLimits.FramesPerSecond, nameof(MovementAnimation.FramesPerSecond), "A sebesség", "képkocka/s", add);
         }
+
+        // Minden mozgásállapothoz pontosan egy animáció tartozik, különben a karakternek nem lenne mit mutatnia.
+        foreach (var state in Enum.GetValues<MovementState>().Where(s => !states.Contains(s)))
+        {
+            errors.For(ConfigurationItemKind.MovementAnimation, ItemKeys.For(state))(
+                nameof(MovementAnimation.AnimationSourceId),
+                "Ehhez a mozgásállapothoz nincs animáció kiválasztva.");
+        }
     }
 
     private static void ValidateRules(IReadOnlyList<BehaviorRule> rules, HashSet<int> sourceIds, ErrorCollector errors)

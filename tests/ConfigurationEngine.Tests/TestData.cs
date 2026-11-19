@@ -30,7 +30,10 @@ internal static class TestData
         ],
         MovementAnimations =
         [
-            new MovementAnimation { MovementState = MovementState.Walking, AnimationSourceId = 1, FramesPerSecond = 12 }
+            new MovementAnimation { MovementState = MovementState.Idle, AnimationSourceId = 1, FramesPerSecond = 8 },
+            new MovementAnimation { MovementState = MovementState.Walking, AnimationSourceId = 1, FramesPerSecond = 12 },
+            new MovementAnimation { MovementState = MovementState.Falling, AnimationSourceId = 1, FramesPerSecond = 10 },
+            new MovementAnimation { MovementState = MovementState.Dragging, AnimationSourceId = 1, FramesPerSecond = 10 }
         ],
         BehaviorRules =
         [
