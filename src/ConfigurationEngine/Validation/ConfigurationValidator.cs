@@ -36,9 +36,12 @@ public sealed class ConfigurationValidator : IConfigurationValidator
         for (var i = 0; i < sources.Count; i++)
         {
             var source = sources[i];
-            var add = errors.For(ConfigurationItemKind.AnimationSource, ItemKeys.For(source, i));
 
-            if (source.Id != 0 && !ids.Add(source.Id))
+            // Ismétlődő azonosítónál a kulcs a listabeli index, különben a hiba mindkét elemre mutatna.
+            var duplicateId = source.Id != 0 && !ids.Add(source.Id);
+            var add = errors.For(ConfigurationItemKind.AnimationSource, duplicateId ? ItemKeys.ForIndex(i) : ItemKeys.For(source, i));
+
+            if (duplicateId)
             {
                 add(nameof(AnimationSource.Id), "Az azonosító többször szerepel.");
             }
@@ -70,6 +73,12 @@ public sealed class ConfigurationValidator : IConfigurationValidator
 
     private static void CheckGrid(AnimationSource source, Action<string?, string> add)
     {
+        // Ismeretlen típusnál a rács szabályai nem értelmezhetők; elég a típus hibája.
+        if (!Enum.IsDefined(source.SourceType))
+        {
+            return;
+        }
+
         if (source.SourceType != AnimationSourceType.SpriteSheet)
         {
             foreach (var (name, value) in GridFields(source))
@@ -143,9 +152,12 @@ public sealed class ConfigurationValidator : IConfigurationValidator
         for (var i = 0; i < rules.Count; i++)
         {
             var rule = rules[i];
-            var add = errors.For(ConfigurationItemKind.BehaviorRule, ItemKeys.For(rule, i));
 
-            if (rule.Id != 0 && !ids.Add(rule.Id))
+            // Ismétlődő azonosítónál a kulcs a listabeli index, különben a hiba mindkét elemre mutatna.
+            var duplicateId = rule.Id != 0 && !ids.Add(rule.Id);
+            var add = errors.For(ConfigurationItemKind.BehaviorRule, duplicateId ? ItemKeys.ForIndex(i) : ItemKeys.For(rule, i));
+
+            if (duplicateId)
             {
                 add(nameof(BehaviorRule.Id), "Az azonosító többször szerepel.");
             }
@@ -168,12 +180,12 @@ public sealed class ConfigurationValidator : IConfigurationValidator
             add(nameof(BehaviorRule.Metric), "Ismeretlen metrika.");
         }
 
+        // Ismeretlen operátornál a felső határ szabálya nem értelmezhető; elég az operátor hibája.
         if (!Enum.IsDefined(rule.Operator))
         {
             add(nameof(BehaviorRule.Operator), "Ismeretlen operátor.");
         }
-
-        if (rule.Operator != ComparisonOperator.Between)
+        else if (rule.Operator != ComparisonOperator.Between)
         {
             if (rule.ThresholdUpper is not null)
             {

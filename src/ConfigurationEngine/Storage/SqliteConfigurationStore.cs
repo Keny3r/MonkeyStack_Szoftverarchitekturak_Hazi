@@ -28,6 +28,9 @@ public sealed class SqliteConfigurationStore : IConfigurationStore
     private readonly IMediaValidator? _mediaValidator;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
+    /// <summary>Lefutott-e már a migráció ezen a példányon (csak a <see cref="_gate"/> alatt olvassuk és írjuk).</summary>
+    private bool _migrated;
+
     /// <param name="databasePath">Az adatbázisfájl; ha <c>null</c>, <see cref="DefaultDatabasePath"/>.</param>
     /// <param name="validator">Ha <c>null</c>, <see cref="ConfigurationValidator"/>.</param>
     /// <param name="mediaValidator">
@@ -59,7 +62,9 @@ public sealed class SqliteConfigurationStore : IConfigurationStore
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            wasReset = !File.Exists(DatabasePath);
+            // Az SQLite a 0 bájtos fájlt üres adatbázisként nyitja meg, ezért azt is hiányzónak tekintjük
+            // (pl. megszakadt létrehozás után), különben a hívó nem tudná meg, hogy alapértékek töltődtek be.
+            wasReset = !File.Exists(DatabasePath) || new FileInfo(DatabasePath).Length == 0;
             try
             {
                 stored = await ReadAsync(cancellationToken).ConfigureAwait(false);
@@ -83,8 +88,10 @@ public sealed class SqliteConfigurationStore : IConfigurationStore
     {
         ArgumentNullException.ThrowIfNull(data);
 
-        ModelCopies.Normalize(data);
-        var validation = _validator.Validate(data);
+        // Másolaton normalizálunk és validálunk, így érvénytelen konfigurációnál a hívó objektumai nem változnak.
+        var normalized = data.Copy();
+        ModelCopies.Normalize(normalized);
+        var validation = _validator.Validate(normalized);
         if (!validation.IsValid)
         {
             throw new ConfigurationValidationException(validation);
@@ -93,26 +100,48 @@ public sealed class SqliteConfigurationStore : IConfigurationStore
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await WriteAsync(data, cancellationToken).ConfigureAwait(false);
+            await WriteAsync(normalized, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
             _gate.Release();
         }
 
+        ModelCopies.ApplySaved(normalized, data);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    private ConfigurationDbContext OpenContext()
+    /// <summary>
+    /// Kapcsolatot nyit, és ha kell, lefuttatja a migrációt: példányonként egyszer, illetve újra, ha az
+    /// adatbázisfájl közben eltűnt vagy helyreállítás miatt új jön létre. Csak a <see cref="_gate"/> alatt hívható.
+    /// </summary>
+    private async Task<ConfigurationDbContext> OpenContextAsync(CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(DatabasePath)!);
-        return ConfigurationDbContext.Create(DatabasePath);
+        var needsMigration = !_migrated || !File.Exists(DatabasePath);
+        var context = ConfigurationDbContext.Create(DatabasePath);
+        if (!needsMigration)
+        {
+            return context;
+        }
+
+        try
+        {
+            await context.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            await context.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
+
+        _migrated = true;
+        return context;
     }
 
     private async Task<ConfigurationData> ReadAsync(CancellationToken cancellationToken)
     {
-        await using var context = OpenContext();
-        await context.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
+        await using var context = await OpenContextAsync(cancellationToken).ConfigureAwait(false);
 
         // AsNoTracking: az ismeretlen felsorolás-értékű kulcsok (-1) ütközhetnének a követésben.
         return new ConfigurationData
@@ -135,8 +164,7 @@ public sealed class SqliteConfigurationStore : IConfigurationStore
     /// </summary>
     private async Task WriteAsync(ConfigurationData data, CancellationToken cancellationToken)
     {
-        await using var context = OpenContext();
-        await context.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
+        await using var context = await OpenContextAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
         await context.BehaviorRules.ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
@@ -207,7 +235,7 @@ public sealed class SqliteConfigurationStore : IConfigurationStore
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
-        // Csak sikeres commit után frissítjük a hívó objektumait.
+        // Csak sikeres commit után frissítjük a mentett objektumokat (a SaveAsync innen írja vissza a hívóéiba).
         foreach (var (original, entity) in newSources)
         {
             original.Id = entity.Id;
@@ -366,19 +394,46 @@ public sealed class SqliteConfigurationStore : IConfigurationStore
         return false;
     }
 
-    /// <summary>A sérült fájlt (és a kísérő naplófájlokat) félreteszi; a következő megnyitás új adatbázist hoz létre.</summary>
+    /// <summary>
+    /// A sérült fájlt a naplófájljaival együtt <c>.bak</c>-ként félreteszi; a következő megnyitás új adatbázist hoz létre.
+    /// Egy korábbi <c>.bak</c> nem íródik felül, hanem időbélyeggel félrekerül, mert lehet, hogy az az utolsó jó másolat.
+    /// </summary>
     private void ResetDatabase()
     {
         SqliteConnection.ClearAllPools();
-        File.Move(DatabasePath, DatabasePath + ".bak", overwrite: true);
+        _migrated = false;
 
-        foreach (var suffix in new[] { "-journal", "-wal", "-shm" })
+        var backupPath = DatabasePath + ".bak";
+        if (File.Exists(backupPath))
         {
-            var sidecar = DatabasePath + suffix;
-            if (File.Exists(sidecar))
+            MoveWithSidecars(backupPath, $"{backupPath}.{DateTime.UtcNow:yyyyMMddHHmmssfff}");
+        }
+
+        MoveWithSidecars(DatabasePath, backupPath);
+    }
+
+    /// <summary>
+    /// Áthelyez egy adatbázisfájlt a <c>-wal</c> és <c>-journal</c> naplójával együtt (az SQLite a naplót a fájlnév
+    /// alapján keresi), így a félretett másolat a még vissza nem írt tranzakciókkal együtt nyitható meg. A <c>-shm</c>
+    /// csak a WAL megosztott indexe, újra létrejön, ezért töröljük.
+    /// </summary>
+    internal static void MoveWithSidecars(string from, string to)
+    {
+        File.Move(from, to, overwrite: true);
+
+        foreach (var suffix in new[] { "-wal", "-journal" })
+        {
+            if (File.Exists(from + suffix))
             {
-                File.Delete(sidecar);
+                File.Move(from + suffix, to + suffix, overwrite: true);
+            }
+            else
+            {
+                // Egy régi, máshoz tartozó napló ne kerüljön az új másolat mellé.
+                File.Delete(to + suffix);
             }
         }
+
+        File.Delete(from + "-shm");
     }
 }

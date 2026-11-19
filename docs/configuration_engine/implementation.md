@@ -18,7 +18,7 @@ Ez a dokumentum a [Konfigurációs motor](../components.md#konfigurációs-motor
 | [`Model/ConfigurationDefaults.cs`](../../src/ConfigurationEngine/Model/ConfigurationDefaults.cs) | Alapértékek: új adatbázis, illetve hiányzó vagy hibás beállítás helyett |
 | [`tests/ConfigurationEngine.Tests`](../../tests/ConfigurationEngine.Tests) | A validátor és a tároló tesztjei |
 
-Az adatbázis helye `%LOCALAPPDATA%\MonkeyStack\config.db`. A tároló minden művelethez saját kapcsolatot nyit kapcsolat-készlet nélkül, így a fájl a művelet végén felszabadul.
+Az adatbázis helye `%LOCALAPPDATA%\MonkeyStack\config.db`. A tároló minden művelethez saját kapcsolatot nyit kapcsolat-készlet nélkül, így a fájl a művelet végén felszabadul. A migráció példányonként csak az első műveletnél fut le, illetve újra, ha az adatbázisfájl közben eltűnt vagy helyreállítás miatt új jön létre.
 
 #### Betöltés
 
@@ -33,7 +33,7 @@ sequenceDiagram
     H->>S: LoadAsync()
     S->>DB: migráció, majd minden tábla beolvasása
     alt sérült fájl (SQLite 11 / 26)
-        S->>S: config.db → config.db.bak
+        S->>S: config.db (-wal, -journal) → config.db.bak
         S->>DB: új adatbázis alapértékekkel
     end
     S->>V: Validate(beolvasott adat)
@@ -46,6 +46,8 @@ sequenceDiagram
 ```
 
 - Csak akkor tekintjük sérültnek a fájlt, ha az SQLite szerint nem adatbázis (26) vagy sérült (11). Egy zárolt vagy más okból elérhetetlen adatbázist nem dobunk el, ilyenkor a hiba a hívóhoz jut.
+- A sérült fájl a `-wal` és `-journal` naplójával együtt kerül félre (`config.db.bak-wal`), így a mentés a még vissza nem írt tranzakciókkal együtt nyitható meg. Egy korábbi `config.db.bak` nem íródik felül: időbélyeggel félrekerül (`config.db.bak.<UTC időbélyeg>`).
+- A 0 bájtos `config.db` (pl. megszakadt létrehozás után) hiányzónak számít: a `DatabaseWasReset` ilyenkor is igaz, így az ablak jelezheti, hogy alapértékek töltődtek be.
 - Az ismeretlen felsorolás-szöveg (pl. `Metric = 'Gpu'`) nem okoz kivételt: a `TolerantEnumConverter` nem definiált értékre képezi le, a validátor jelzi, és csak az érintett sor marad ki.
 - Minden kihagyott elemhez tartozik egy [`DroppedItem`](../../src/ConfigurationEngine/Validation/DroppedItem.cs) az okokkal, ezt jeleníti meg a konfigurációs ablak. Egy hibás forrás miatt kimaradó szabálynál az ok: „A hivatkozott animációs forrás (…) érvénytelen.”
 - A hét metrika mintavételezési beállítása mindig teljes: a hiányzók alapértéket kapnak.
@@ -60,8 +62,8 @@ sequenceDiagram
     participant DB as SQLite
 
     H->>S: SaveAsync(adat)
-    S->>S: szöveges mezők trimmelése
-    S->>V: Validate(adat)
+    S->>S: másolat, a szöveges mezők trimmelése
+    S->>V: Validate(másolat)
     alt érvénytelen
         S-->>H: ConfigurationValidationException (semmi nem változik)
     end
@@ -70,7 +72,7 @@ sequenceDiagram
     S->>DB: törölt források törlése, meglévők frissítése
     S->>DB: beszúrás: előbb a meglévő azonosítójú sorok, utána az újak
     S->>DB: commit
-    S->>S: új azonosítók és hivatkozások visszaírása a hívó objektumaiba
+    S->>S: új azonosítók, hivatkozások és trimmelt szövegek visszaírása a hívó objektumaiba
     S-->>H: Changed esemény
 ```
 
@@ -86,9 +88,13 @@ Egy még nem mentett elem azonosítója 0 vagy egy egyedi negatív szám. Ha a k
 | Új szabály `Id` | `0` | `7` |
 | Új szabály `AnimationSourceId` | `-1` | `4` |
 
-A validálási hibák kulcsa (`ItemKey`) negatív azonosítónál maga az azonosító, 0-nál a listabeli index (`#3`).
+A validálási hibák kulcsa (`ItemKey`) negatív azonosítónál maga az azonosító, 0-nál a listabeli index (`#3`). Ismétlődő azonosítónál a második és további előfordulás kulcsa szintén a listabeli index, így a hiba egyértelműen egy elemre mutat.
+
+A mentés a hívó konfigurációjának másolatán dolgozik ([`ModelCopies`](../../src/ConfigurationEngine/Storage/ModelCopies.cs)): érvénytelen konfigurációnál a hívó objektumai nem változnak. Új modellmezőnél a megfelelő `Copy` metódust is bővíteni kell; a `ModelCopiesTests` ezt ellenőrzi.
 
 #### Alkalmazott minták
+
+A [javasolt minták](../patterns.md) közül:
 
 - **Wrapper Facade**: az `SqliteConfigurationStore` mögött van az EF Core és az SQLite; a hívó csak `ConfigurationData`-t lát.
 - **Thread-Safe Interface** és **Scoped Locking**: a betöltést és a mentést egy `SemaphoreSlim` sorosítja, amelyet `try`/`finally` blokk old fel, így a tároló bármelyik szálról hívható. A lassabb lépések (validálás, médiaellenőrzés) a záron kívül futnak.

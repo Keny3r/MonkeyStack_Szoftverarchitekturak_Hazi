@@ -97,6 +97,49 @@ public sealed class SqliteConfigurationStoreTests : IDisposable
         Assert.Equal(1, changed);
         Assert.Equal("Kis tűz", loaded.BehaviorRules[0].Name);
         Assert.Null(loaded.BehaviorRules[2].ExclusiveGroup);
+
+        // Sikeres mentés után a hívó objektumai is a tárolt (trimmelt) értéket mutatják.
+        Assert.Equal("Kis tűz", data.BehaviorRules[0].Name);
+        Assert.Null(data.BehaviorRules[2].ExclusiveGroup);
+    }
+
+    [Fact]
+    public async Task Save_RejectedConfigurationLeavesCallerObjectsUnchanged()
+    {
+        var store = new SqliteConfigurationStore(_databasePath);
+        var data = TestData.ValidConfiguration();
+        data.AnimationSources.Add(new AnimationSource { Id = -1, Name = " Új ", SourceType = AnimationSourceType.Gif, Path = "new.gif" });
+        data.BehaviorRules[0].Name = "  Kis tűz  ";
+        data.BehaviorRules[0].AnimationSourceId = -1;
+        data.BehaviorRules[2].ExclusiveGroup = "   ";
+        data.BehaviorRules[1].FramesPerSecond = 0;
+
+        await Assert.ThrowsAsync<ConfigurationValidationException>(() => store.SaveAsync(data));
+
+        Assert.Equal(-1, data.AnimationSources[3].Id);
+        Assert.Equal(" Új ", data.AnimationSources[3].Name);
+        Assert.Equal("  Kis tűz  ", data.BehaviorRules[0].Name);
+        Assert.Equal(-1, data.BehaviorRules[0].AnimationSourceId);
+        Assert.Equal("   ", data.BehaviorRules[2].ExclusiveGroup);
+    }
+
+    [Fact]
+    public async Task Save_RecreatesDatabaseDeletedSinceLastOperation()
+    {
+        var store = new SqliteConfigurationStore(_databasePath);
+        await store.SaveAsync(TestData.ValidConfiguration());
+
+        SqliteConnection.ClearAllPools();
+        foreach (var file in Directory.GetFiles(_directory))
+        {
+            File.Delete(file);
+        }
+
+        await store.SaveAsync(TestData.ValidConfiguration());
+        var result = await store.LoadAsync();
+
+        Assert.Equal(3, result.Data.AnimationSources.Count);
+        Assert.Empty(result.DroppedItems);
     }
 
     [Fact]
@@ -213,6 +256,58 @@ public sealed class SqliteConfigurationStoreTests : IDisposable
         Assert.True(File.Exists(_databasePath + ".bak"));
         Assert.Equal(7, result.Data.MetricPollings.Count);
         Assert.False((await store.LoadAsync()).DatabaseWasReset);
+    }
+
+    [Fact]
+    public async Task Load_ResetKeepsEarlierBackup()
+    {
+        Directory.CreateDirectory(_directory);
+        const string Garbage = "ez nem egy SQLite adatbázis, csak szemét";
+        await File.WriteAllTextAsync(_databasePath, Garbage);
+        await File.WriteAllTextAsync(_databasePath + ".bak", "korábbi mentés");
+        var store = new SqliteConfigurationStore(_databasePath);
+
+        var result = await store.LoadAsync();
+
+        Assert.True(result.DatabaseWasReset);
+        Assert.Equal(Garbage, await File.ReadAllTextAsync(_databasePath + ".bak"));
+        // Szűrés kézzel: a Windows a "config.db.bak.*" mintára magát a config.db.bak-ot is visszaadná.
+        var earlier = Assert.Single(Directory.GetFiles(_directory), f => Path.GetFileName(f).StartsWith("config.db.bak.", StringComparison.Ordinal));
+        Assert.Equal("korábbi mentés", await File.ReadAllTextAsync(earlier));
+    }
+
+    // A naplók áthelyezését közvetlenül teszteljük: egy kitalált (érvénytelen) -wal fájlt az SQLite már megnyitáskor eldob.
+    [Fact]
+    public async Task MoveWithSidecars_MovesJournalsAndDropsStaleOnes()
+    {
+        Directory.CreateDirectory(_directory);
+        var backupPath = _databasePath + ".bak";
+        await File.WriteAllTextAsync(_databasePath, "adatbázis");
+        await File.WriteAllTextAsync(_databasePath + "-wal", "napló");
+        await File.WriteAllTextAsync(_databasePath + "-shm", "index");
+        await File.WriteAllTextAsync(backupPath + "-journal", "régi, máshoz tartozó napló");
+
+        SqliteConfigurationStore.MoveWithSidecars(_databasePath, backupPath);
+
+        Assert.Equal("adatbázis", await File.ReadAllTextAsync(backupPath));
+        Assert.Equal("napló", await File.ReadAllTextAsync(backupPath + "-wal"));
+        Assert.False(File.Exists(backupPath + "-journal"));
+        Assert.False(File.Exists(_databasePath));
+        Assert.False(File.Exists(_databasePath + "-wal"));
+        Assert.False(File.Exists(_databasePath + "-shm"));
+    }
+
+    [Fact]
+    public async Task Load_EmptyDatabaseFileIsReportedAsReset()
+    {
+        Directory.CreateDirectory(_directory);
+        await File.WriteAllBytesAsync(_databasePath, []);
+        var store = new SqliteConfigurationStore(_databasePath);
+
+        var result = await store.LoadAsync();
+
+        Assert.True(result.DatabaseWasReset);
+        Assert.Equal(7, result.Data.MetricPollings.Count);
     }
 
     [Fact]

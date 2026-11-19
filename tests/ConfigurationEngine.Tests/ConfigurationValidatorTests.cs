@@ -83,6 +83,42 @@ public class ConfigurationValidatorTests
     }
 
     [Fact]
+    public void UnknownSourceType_ReportsOnlyTheType()
+    {
+        var data = TestData.ValidConfiguration();
+        data.AnimationSources[1].SourceType = (AnimationSourceType)(-1); // a "Tűz" sprite sheet, kitöltött ráccsal
+
+        AssertSingleError(data, ConfigurationItemKind.AnimationSource, "2", nameof(AnimationSource.SourceType));
+    }
+
+    [Fact]
+    public void UnknownOperator_ReportsOnlyTheOperator()
+    {
+        var data = TestData.ValidConfiguration();
+        data.BehaviorRules[2].Operator = (ComparisonOperator)(-1); // a "Pizsama" szabály, felső határral
+
+        AssertSingleError(data, ConfigurationItemKind.BehaviorRule, "3", nameof(BehaviorRule.Operator));
+    }
+
+    [Fact]
+    public void DuplicateRuleId_IsKeyedByIndex()
+    {
+        var data = TestData.ValidConfiguration();
+        data.BehaviorRules.Add(TestData.Rule(1, "Másolat", Metric.Cpu, ComparisonOperator.Gt, 50));
+
+        AssertSingleError(data, ConfigurationItemKind.BehaviorRule, "#3", nameof(BehaviorRule.Id));
+    }
+
+    [Fact]
+    public void DuplicateSourceId_IsKeyedByIndex()
+    {
+        var data = TestData.ValidConfiguration();
+        data.AnimationSources.Add(new AnimationSource { Id = 1, Name = "Másolat", SourceType = AnimationSourceType.Gif, Path = "copy.gif" });
+
+        AssertSingleError(data, ConfigurationItemKind.AnimationSource, "#3", nameof(AnimationSource.Id));
+    }
+
+    [Fact]
     public void DuplicateSourceName_IsRejectedIgnoringCase()
     {
         var data = TestData.ValidConfiguration();

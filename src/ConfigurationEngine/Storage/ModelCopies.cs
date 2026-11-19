@@ -3,11 +3,27 @@ namespace ConfigurationEngine.Storage;
 using ConfigurationEngine.Model;
 
 /// <summary>
-/// Másolatok és normalizálás mentéshez: az EF Core a másolatokat követi, így a hívó objektumai
-/// csak sikeres mentés után változnak (új azonosítók).
+/// Másolatok és normalizálás mentéshez: a tároló a hívó konfigurációjának másolatát normalizálja, validálja és menti
+/// (az EF Core is másolatokat követ), így a hívó objektumai csak sikeres mentés után változnak
+/// (<see cref="ApplySaved"/>: új azonosítók, átírt hivatkozások, trimmelt szövegek).
 /// </summary>
+/// <remarks>
+/// Új modellmezőnél a megfelelő <c>Copy</c> metódust is bővíteni kell; ezt a <c>ModelCopiesTests</c> ellenőrzi.
+/// </remarks>
 internal static class ModelCopies
 {
+    /// <summary>A teljes konfiguráció mély másolata; az elemek sorrendje megegyezik.</summary>
+    public static ConfigurationData Copy(this ConfigurationData d) => new()
+    {
+        AnimationSources = d.AnimationSources.Select(s => s.Copy()).ToList(),
+        MovementAnimations = d.MovementAnimations.Select(m => m.Copy()).ToList(),
+        BehaviorRules = d.BehaviorRules.Select(r => r.Copy()).ToList(),
+
+        // A hiányzó beállításokat a validátor jelzi, ezért a null itt megmarad.
+        Character = d.Character?.Copy()!,
+        MetricPollings = d.MetricPollings.Select(p => p.Copy()).ToList()
+    };
+
     public static AnimationSource Copy(this AnimationSource s) => new()
     {
         Id = s.Id,
@@ -63,7 +79,7 @@ internal static class ModelCopies
 
     /// <summary>
     /// A szöveges mezők trimmelése (schema.md: "trimmelve tároljuk"); az üres kizáró csoport <c>null</c> lesz.
-    /// A hívó objektumain dolgozik, mentés előtt.
+    /// A mentendő másolaton dolgozik, validálás előtt.
     /// </summary>
     public static void Normalize(ConfigurationData data)
     {
@@ -77,6 +93,36 @@ internal static class ModelCopies
         {
             rule.Name = rule.Name?.Trim() ?? string.Empty;
             rule.ExclusiveGroup = string.IsNullOrWhiteSpace(rule.ExclusiveGroup) ? null : rule.ExclusiveGroup.Trim();
+        }
+    }
+
+    /// <summary>
+    /// Sikeres mentés után a mentett másolatban megváltozott mezőket (új azonosítók, átírt forráshivatkozások,
+    /// normalizált szövegek) visszaírja a hívó objektumaiba. A <paramref name="saved"/> a <paramref name="target"/>
+    /// másolata, így az elemek indexre megfelelnek egymásnak.
+    /// </summary>
+    public static void ApplySaved(ConfigurationData saved, ConfigurationData target)
+    {
+        for (var i = 0; i < saved.AnimationSources.Count; i++)
+        {
+            var (from, to) = (saved.AnimationSources[i], target.AnimationSources[i]);
+            to.Id = from.Id;
+            to.Name = from.Name;
+            to.Path = from.Path;
+        }
+
+        for (var i = 0; i < saved.MovementAnimations.Count; i++)
+        {
+            target.MovementAnimations[i].AnimationSourceId = saved.MovementAnimations[i].AnimationSourceId;
+        }
+
+        for (var i = 0; i < saved.BehaviorRules.Count; i++)
+        {
+            var (from, to) = (saved.BehaviorRules[i], target.BehaviorRules[i]);
+            to.Id = from.Id;
+            to.Name = from.Name;
+            to.ExclusiveGroup = from.ExclusiveGroup;
+            to.AnimationSourceId = from.AnimationSourceId;
         }
     }
 }
