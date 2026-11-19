@@ -54,6 +54,36 @@ namespace ConfigurationEngine.Storage.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("AnimationSource", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Name = "Alap – Idle",
+                            Path = "movement/idle",
+                            SourceType = "ImageFolder"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Name = "Alap – Walking",
+                            Path = "movement/walking",
+                            SourceType = "ImageFolder"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Name = "Alap – Falling",
+                            Path = "movement/falling",
+                            SourceType = "ImageFolder"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Name = "Alap – Dragging",
+                            Path = "movement/dragging",
+                            SourceType = "ImageFolder"
+                        });
                 });
 
             modelBuilder.Entity("ConfigurationEngine.Model.BehaviorRule", b =>
@@ -223,6 +253,32 @@ namespace ConfigurationEngine.Storage.Migrations
                     b.HasIndex("AnimationSourceId");
 
                     b.ToTable("MovementAnimation", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            MovementState = "Idle",
+                            AnimationSourceId = 1,
+                            FramesPerSecond = 10.0
+                        },
+                        new
+                        {
+                            MovementState = "Walking",
+                            AnimationSourceId = 2,
+                            FramesPerSecond = 10.0
+                        },
+                        new
+                        {
+                            MovementState = "Falling",
+                            AnimationSourceId = 3,
+                            FramesPerSecond = 10.0
+                        },
+                        new
+                        {
+                            MovementState = "Dragging",
+                            AnimationSourceId = 4,
+                            FramesPerSecond = 10.0
+                        });
                 });
 
             modelBuilder.Entity("ConfigurationEngine.Model.BehaviorRule", b =>

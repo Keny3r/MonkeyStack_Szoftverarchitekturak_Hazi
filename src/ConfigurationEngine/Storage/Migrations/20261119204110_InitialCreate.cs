@@ -110,6 +110,17 @@ namespace ConfigurationEngine.Storage.Migrations
                 });
 
             migrationBuilder.InsertData(
+                table: "AnimationSource",
+                columns: new[] { "Id", "Columns", "FrameCount", "FrameHeight", "FrameWidth", "Name", "Path", "Rows", "SourceType" },
+                values: new object[,]
+                {
+                    { 1, null, null, null, null, "Alap – Idle", "movement/idle", null, "ImageFolder" },
+                    { 2, null, null, null, null, "Alap – Walking", "movement/walking", null, "ImageFolder" },
+                    { 3, null, null, null, null, "Alap – Falling", "movement/falling", null, "ImageFolder" },
+                    { 4, null, null, null, null, "Alap – Dragging", "movement/dragging", null, "ImageFolder" }
+                });
+
+            migrationBuilder.InsertData(
                 table: "CharacterSettings",
                 columns: new[] { "Id", "CharacterHeight", "CharacterWidth", "FollowCursor", "GravityPxPerSec2", "WalkSpeedPxPerSec" },
                 values: new object[] { 1, 100, 100, true, 2000, 120 });
@@ -126,6 +137,17 @@ namespace ConfigurationEngine.Storage.Migrations
                     { "Memory", 1000, true },
                     { "Time", 30000, true },
                     { "WindowCount", 2000, true }
+                });
+
+            migrationBuilder.InsertData(
+                table: "MovementAnimation",
+                columns: new[] { "MovementState", "AnimationSourceId", "FramesPerSecond" },
+                values: new object[,]
+                {
+                    { "Dragging", 4, 10.0 },
+                    { "Falling", 3, 10.0 },
+                    { "Idle", 1, 10.0 },
+                    { "Walking", 2, 10.0 }
                 });
 
             migrationBuilder.CreateIndex(
