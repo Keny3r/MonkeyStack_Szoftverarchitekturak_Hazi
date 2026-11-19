@@ -207,16 +207,13 @@ public sealed class ConfigurationValidator : IConfigurationValidator
 
     private static void CheckExclusiveGroup(string? group, Action<string?, string> add)
     {
-        if (group is null)
+        // Az üres vagy csak szóközből álló név "nincs csoport"; mentéskor null lesz belőle.
+        if (string.IsNullOrWhiteSpace(group))
         {
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(group))
-        {
-            add(nameof(BehaviorRule.ExclusiveGroup), "A csoport neve nem lehet üres; csoport nélkül hagyd üresen a mezőt.");
-        }
-        else if (group.Trim().Length > ConfigurationLimits.ExclusiveGroupMaxLength)
+        if (group.Trim().Length > ConfigurationLimits.ExclusiveGroupMaxLength)
         {
             add(nameof(BehaviorRule.ExclusiveGroup), $"A csoport neve legfeljebb {ConfigurationLimits.ExclusiveGroupMaxLength} karakter lehet.");
         }

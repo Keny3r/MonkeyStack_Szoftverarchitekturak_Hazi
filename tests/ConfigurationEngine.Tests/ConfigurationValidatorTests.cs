@@ -164,10 +164,19 @@ public class ConfigurationValidatorTests
     }
 
     [Fact]
-    public void WhitespaceExclusiveGroup_IsRejected()
+    public void WhitespaceExclusiveGroup_MeansNoGroup()
     {
         var data = TestData.ValidConfiguration();
         data.BehaviorRules[0].ExclusiveGroup = "   ";
+
+        Assert.True(_validator.Validate(data).IsValid);
+    }
+
+    [Fact]
+    public void TooLongExclusiveGroup_IsRejected()
+    {
+        var data = TestData.ValidConfiguration();
+        data.BehaviorRules[0].ExclusiveGroup = new string('x', ConfigurationLimits.ExclusiveGroupMaxLength + 1);
 
         AssertSingleError(data, ConfigurationItemKind.BehaviorRule, "1", nameof(BehaviorRule.ExclusiveGroup));
     }
