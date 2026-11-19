@@ -1,11 +1,13 @@
 namespace OsEventEngine.Monitoring;
 
+using MonkeyStack.Core.Events;
 using OsEventEngine.Simulation;
 
 /// <summary>
 /// A metrikák értéktartományai, alapértelmezett mintavételezése és UI-leírói egy helyen.
-/// A tartományok és az intervallumok megegyeznek a konfigurációs ág <c>ConfigurationLimits</c> / <c>MetricPolling</c>
-/// értékeivel (docs/configuration_engine/schema.md a <c>feat/config-engine-proposal</c> ágon).
+/// A tartományok és az intervallumok megegyeznek a Konfigurációs motor <c>ConfigurationLimits</c> / <c>MetricPolling</c>
+/// értékeivel (docs/configuration_engine/schema.md, "MetricPolling" és "Metrikák és értéktartományok").
+/// TODO: a merge után közösen a Core-ba (a <see cref="Metric"/> mellé), hogy egy helyen éljenek (PR #3, Levente).
 /// </summary>
 public static class MetricCatalog
 {

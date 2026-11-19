@@ -1,6 +1,6 @@
 namespace OsEventEngine.Simulation;
 
-using OsEventEngine.Monitoring;
+using MonkeyStack.Core.Events;
 
 /// <summary>
 /// Egy metrika forrásának módja.

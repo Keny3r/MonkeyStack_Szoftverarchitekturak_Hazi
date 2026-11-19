@@ -1,6 +1,6 @@
 namespace OsEventEngine.Simulation;
 
-using OsEventEngine.Monitoring;
+using MonkeyStack.Core.Events;
 
 /// <summary>
 /// Egy metrika leírója a UI és a szimuláció számára. Az OS Mock View ebből építi fel a sorait,

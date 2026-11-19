@@ -1,10 +1,12 @@
 namespace OsEventEngine;
 
+using MonkeyStack.Core.Events;
 using OsEventEngine.Monitoring;
 
 /// <summary>
 /// Egy metrika monitorozási beállítása (Component Configurator: futás közben cserélhető).
-/// Megfelel a konfigurációs ág <c>MetricPolling</c> sorának, kiegészítve a belső deadbanddel.
+/// Megfelel a Konfigurációs motor <c>MetricPolling</c> sorának (docs/configuration_engine/schema.md), kiegészítve a belső deadbanddel.
+/// Integráláskor az <see cref="IPollingSettingsProvider"/> adja (null intervallum = <see cref="Enabled"/> = false).
 /// </summary>
 /// <param name="Enabled">Letiltott metrikát nem mérünk, és nem küldünk rá eseményt.</param>
 /// <param name="Interval">Mintavételi periódus (<see cref="MetricCatalog.MinIntervalMs"/>–<see cref="MetricCatalog.MaxIntervalMs"/>).</param>

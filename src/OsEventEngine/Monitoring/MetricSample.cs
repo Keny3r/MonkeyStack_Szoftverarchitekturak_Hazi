@@ -1,5 +1,7 @@
 namespace OsEventEngine.Monitoring;
 
+using MonkeyStack.Core.Events;
+
 /// <summary>
 /// Honnan származik egy minta.
 /// </summary>

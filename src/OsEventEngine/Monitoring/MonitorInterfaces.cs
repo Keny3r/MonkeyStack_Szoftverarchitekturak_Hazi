@@ -1,5 +1,6 @@
 namespace OsEventEngine.Monitoring;
 
+using MonkeyStack.Core.Events;
 using OsEventEngine.Simulation;
 
 /// <summary>
