@@ -1,0 +1,116 @@
+## Konfigurációs motor – implementáció
+
+Ez a dokumentum a [Konfigurációs motor](../components.md#konfigurációs-motor) megvalósítását írja le. Hogy mit tárolunk és mi érvényes, azt a [Séma és validálás](./schema.md) rögzíti; a komponensek közös modelljét az [MVC terv](../mvc_architecture.md#config-engine). Fogalmak: [Szótár](../../README.md#szótár).
+
+---
+
+### Tárolás és validálás
+
+#### Felépítés
+
+| Fájl | Szerep |
+|---|---|
+| [`Storage/SqliteConfigurationStore.cs`](../../src/ConfigurationEngine/Storage/SqliteConfigurationStore.cs) | Az [`IConfigurationStore`](../../src/ConfigurationEngine/Storage/IConfigurationStore.cs) megvalósítása: betöltés, mentés, helyreállítás |
+| [`Storage/ConfigurationDbContext.cs`](../../src/ConfigurationEngine/Storage/ConfigurationDbContext.cs) | EF Core leképezés: táblák, szövegként tárolt felsorolások, `RESTRICT` hivatkozások, alapadatok |
+| [`Storage/TolerantEnumConverter.cs`](../../src/ConfigurationEngine/Storage/TolerantEnumConverter.cs) | Ismeretlen felsorolás-szöveg → nem definiált érték, amit a validátor kiszűr |
+| [`Storage/Migrations/`](../../src/ConfigurationEngine/Storage/Migrations) | EF Core migrációk |
+| [`Validation/ConfigurationValidator.cs`](../../src/ConfigurationEngine/Validation/ConfigurationValidator.cs) | Az [`IConfigurationValidator`](../../src/ConfigurationEngine/Validation/IConfigurationValidator.cs) megvalósítása: mező- és kereszthivatkozási szabályok |
+| [`Model/ConfigurationDefaults.cs`](../../src/ConfigurationEngine/Model/ConfigurationDefaults.cs) | Alapértékek: új adatbázis, illetve hiányzó vagy hibás beállítás helyett |
+| [`tests/ConfigurationEngine.Tests`](../../tests/ConfigurationEngine.Tests) | A validátor és a tároló tesztjei |
+
+Az adatbázis helye `%LOCALAPPDATA%\MonkeyStack\config.db`. A tároló minden művelethez saját kapcsolatot nyit kapcsolat-készlet nélkül, így a fájl a művelet végén felszabadul.
+
+#### Betöltés
+
+```mermaid
+sequenceDiagram
+    participant H as Hívó
+    participant S as SqliteConfigurationStore
+    participant DB as SQLite
+    participant V as ConfigurationValidator
+    participant M as IMediaValidator (Quick)
+
+    H->>S: LoadAsync()
+    S->>DB: migráció, majd minden tábla beolvasása
+    alt sérült fájl (SQLite 11 / 26)
+        S->>S: config.db → config.db.bak
+        S->>DB: új adatbázis alapértékekkel
+    end
+    S->>V: Validate(beolvasott adat)
+    loop minden hibátlan forrás
+        S->>M: ValidateAsync(forrás, Quick)
+    end
+    S->>S: hibás források kihagyása, és velük a rájuk hivatkozó sorok
+    S->>S: hibás vagy hiányzó beállítások helyett alapértékek
+    S-->>H: ConfigurationLoadResult(adat, kihagyott elemek, DatabaseWasReset)
+```
+
+- Csak akkor tekintjük sérültnek a fájlt, ha az SQLite szerint nem adatbázis (26) vagy sérült (11). Egy zárolt vagy más okból elérhetetlen adatbázist nem dobunk el, ilyenkor a hiba a hívóhoz jut.
+- Az ismeretlen felsorolás-szöveg (pl. `Metric = 'Gpu'`) nem okoz kivételt: a `TolerantEnumConverter` nem definiált értékre képezi le, a validátor jelzi, és csak az érintett sor marad ki.
+- Minden kihagyott elemhez tartozik egy [`DroppedItem`](../../src/ConfigurationEngine/Validation/DroppedItem.cs) az okokkal, ezt jeleníti meg a konfigurációs ablak. Egy hibás forrás miatt kimaradó szabálynál az ok: „A hivatkozott animációs forrás (…) érvénytelen.”
+- A hét metrika mintavételezési beállítása mindig teljes: a hiányzók alapértéket kapnak.
+
+#### Mentés
+
+```mermaid
+sequenceDiagram
+    participant H as Hívó
+    participant S as SqliteConfigurationStore
+    participant V as ConfigurationValidator
+    participant DB as SQLite
+
+    H->>S: SaveAsync(adat)
+    S->>S: szöveges mezők trimmelése
+    S->>V: Validate(adat)
+    alt érvénytelen
+        S-->>H: ConfigurationValidationException (semmi nem változik)
+    end
+    S->>DB: tranzakció kezdete
+    S->>DB: szabályok, mozgási animációk, beállítások törlése
+    S->>DB: törölt források törlése, meglévők frissítése
+    S->>DB: beszúrás: előbb a meglévő azonosítójú sorok, utána az újak
+    S->>DB: commit
+    S->>S: új azonosítók és hivatkozások visszaírása a hívó objektumaiba
+    S-->>H: Changed esemény
+```
+
+A szabályokra, a mozgási animációkra és a beállításokra semmi nem hivatkozik, ezért ezek a mentéskor egyszerűen újra bekerülnek (a meglévő azonosítók megmaradnak). Az animációs forrásokra hivatkoznak, ezért azokat egyenként szinkronizáljuk; a még használt forrás törlését a validátor már a tranzakció előtt megakadályozza.
+
+#### Ideiglenes azonosítók
+
+Egy még nem mentett elem azonosítója 0 vagy egy egyedi negatív szám. Ha a konfigurációs ablakban egy új forrást rögtön egy új szabályhoz is hozzárendelnek, a forrás negatív ideiglenes azonosítót kap (pl. `-1`), és a szabály erre hivatkozik. Mentéskor a tároló a valódi azonosítót a hívó objektumaiba is visszaírja, a hivatkozásokkal együtt:
+
+| | Mentés előtt | Mentés után |
+|---|---|---|
+| Új forrás `Id` | `-1` | `4` |
+| Új szabály `Id` | `0` | `7` |
+| Új szabály `AnimationSourceId` | `-1` | `4` |
+
+A validálási hibák kulcsa (`ItemKey`) negatív azonosítónál maga az azonosító, 0-nál a listabeli index (`#3`).
+
+#### Alkalmazott minták
+
+- **Wrapper Facade**: az `SqliteConfigurationStore` mögött van az EF Core és az SQLite; a hívó csak `ConfigurationData`-t lát.
+- **Thread-Safe Interface** és **Scoped Locking**: a betöltést és a mentést egy `SemaphoreSlim` sorosítja, amelyet `try`/`finally` blokk old fel, így a tároló bármelyik szálról hívható. A lassabb lépések (validálás, médiaellenőrzés) a záron kívül futnak.
+- **Component Configurator**: a sikeres mentés után kiváltott `Changed` esemény indítja a futó konfiguráció újratöltését.
+
+#### Biztonság
+
+- Az adatbázist csak EF Core-on keresztül érjük el, amely minden lekérdezést paraméterezve küld; nyers SQL-t string-összefűzéssel nem írunk.
+- Hibás adat nem kerül az adatbázisba (mentés előtti validálás), és a kívülről elrontott adatbázis sem állítja le az alkalmazást (betöltéskori validálás, helyreállítás).
+
+#### Fejlesztői tudnivalók
+
+```bash
+dotnet test MonkeyStack.slnx
+```
+
+```bash
+dotnet tool restore
+```
+
+```bash
+dotnet ef migrations add <Név> --project src/ConfigurationEngine --output-dir Storage/Migrations
+```
+
+A modell változásakor új migráció kell; indításkor a tároló automatikusan lefuttatja.

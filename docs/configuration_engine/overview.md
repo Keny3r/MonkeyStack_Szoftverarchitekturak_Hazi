@@ -14,6 +14,8 @@ SQLite adatbázis.
 
 [Séma és validálás](./schema.md)
 
+[Implementáció](./implementation.md)
+
 
 ## Részletes MVC terv
 
