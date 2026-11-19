@@ -1,0 +1,5 @@
+root = true
+
+# A WPF projektsablon által generált fájl; a formázás-ellenőrzés (dotnet format) kihagyja.
+[**/AssemblyInfo.cs]
+generated_code = true

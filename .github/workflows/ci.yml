@@ -1,0 +1,61 @@
+# Minimális CI: formázás-ellenőrzés (lint) és a teljes megoldás buildje.
+#
+# Helyben ugyanez:
+#   dotnet format MonkeyStack.slnx --verify-no-changes   # lint
+#   dotnet format MonkeyStack.slnx                       # a hibák automatikus javítása
+#   dotnet build MonkeyStack.slnx -c Release             # build
+#
+# Windows runner kell, mert a projektek WPF-et használnak (net10.0-windows).
+# A projektek célja és a CI SDK-ja is .NET 10 (a .slnx megoldásfájlhoz legalább 9.0.200-as SDK kell).
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  lint:
+    name: Lint (dotnet format)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore MonkeyStack.slnx
+
+      - name: Check formatting
+        run: dotnet format MonkeyStack.slnx --verify-no-changes --no-restore
+
+  build:
+    name: Build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore MonkeyStack.slnx
+
+      - name: Build
+        run: dotnet build MonkeyStack.slnx -c Release --no-restore
