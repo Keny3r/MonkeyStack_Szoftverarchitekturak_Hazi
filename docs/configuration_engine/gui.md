@@ -221,7 +221,7 @@ Minden sor, amelyhez animáció tartozik ([mozgási animációk](#2-mozgási-ani
 #### Előnézeti animációk
 
 - A View a [modellen keresztül](#kapcsolat-a-modellel) kér a szolgáltatástól egy **előnézeti** [`IAnimation`](../../src/MonkeyStack.Core/Animation/IAnimation.cs) példányt a szerkesztett forráshoz és sebességhez. A szolgáltatás ugyanazzal a betöltéssel és skálázással készíti el, mint a karakter animációit ([Animációk előállítása](./schema.md#animációk-előállítása)), így az előnézet pontosan azt mutatja, ami mentés után a karakteren megjelenik.
-- Az előnézeti animációk **külön példányok**: a szolgáltatás `UpdateAnimations` hívása nem lépteti őket, és a Karakter nem kapja meg őket. Ugyanannak a forrásnak a képkockái viszont megosztottak, így egy forrás csak egyszer töltődik be.
+- Az előnézeti animációk **külön példányok**: a Karakter nem kapja meg őket. A **motor lépteti őket** a karakter animációival együtt (`UpdateAnimations`), a [közös modell](../mvc_architecture.md#animáció) szerint; a View csak rajzol. Ugyanannak a forrásnak a képkockái megosztottak, így egy forrás csak egyszer töltődik be.
 - **Sebesség változásakor** a View csak az előnézeti példány `FramesPerSecond` értékét állítja át, újratöltés nem kell. **Forrás változásakor** (másik forrás kiválasztása, tallózás, csere, sprite sheet rács módosítása) új előnézeti animációt kér.
 - **Méret változásakor** ([Karakter mérete](#1-karakter-mérete)) az előnézeti animációk is átméreteződnek.
 - A betöltés a háttérben fut. Addig a sor „betöltés…” állapotot mutat; ha a forrás nem tölthető be, az előnézet helyén a hiba üzenete jelenik meg ([Hibajelzés](#hibajelzés)).
@@ -229,12 +229,12 @@ Minden sor, amelyhez animáció tartozik ([mozgási animációk](#2-mozgási-ani
 #### Kirajzolás
 
 - Minden előnézet egy saját `Canvas`-ra rajzol egy saját [`AnimationView`](../../src/MonkeyStack.Core/Animation/AnimationView.cs) példánnyal, a `(0, 0)` pontba, tükrözés nélkül (`Draw(0, 0)`). A listák soraiban a `Canvas` kicsinyítve (`Viewbox`), a részletek panelen teljes karakterméretben látszik.
-- A View egy rajzolási ciklusban (`CompositionTarget.Rendering`) az eltelt idővel lépteti az előnézeti animációkat (`Update`), majd meghívja a `Draw`-t. Csak az aktuális fülön látható előnézetek frissülnek.
-- Az animációk szálbiztosak és a képkockák fagyasztottak ([Animáció](../mvc_architecture.md#animáció)), így a háttérben betöltött képkockák biztonságosan kirajzolhatók a UI szálon.
+- A View egy rajzolási ciklusban (`CompositionTarget.Rendering`) **csak kirajzol**: meghívja a `Draw`-t, amely az animáció aktuális képkockáját mutatja. A léptetést nem a View végzi. Csak az aktuális fülön látható előnézetek rajzolódnak ki.
+- Az animációk szálbiztosak és a képkockák fagyasztottak ([Animáció](../mvc_architecture.md#animáció)), így a motor léptetheti őket, miközben a UI szál rajzolja őket, és a háttérben betöltött képkockák is biztonságosan kirajzolhatók.
 
 #### Élettartam
 
-Az előnézeti animációk a konfigurációs ablakhoz tartoznak. **Elvetés**kor és **Mentés** után a View a szerkesztett másolatból újraépíti őket, az ablak bezárásakor pedig eldobja őket (`AnimationView.Detach`).
+Az előnézeti animációk a konfigurációs ablakhoz tartoznak. **Elvetés**kor és **Mentés** után a View a szerkesztett másolatból újraépíti őket, az ablak bezárásakor pedig eldobja őket (`ReleasePreviewAnimations`, `AnimationView.Detach`). Eldobás után a motor már nem lépteti őket, ezért a View minden esetben eldobja a régi előnézeteket, mielőtt újakat kér.
 
 ---
 
@@ -400,7 +400,7 @@ A [javasolt minták](../patterns.md) közül, a [közös modell mintáival](../m
 - **Extension Interface**: a `ConfigurationService` szerepenként külön interfészt ad, és minden kliens csak a sajátját kapja: a Karakter az `IConfigurationService`-t, az OS motor az `IPollingSettingsProvider`-t, a konfigurációs ablak az `IConfigurationEditor`-t. A View-nak szóló szerkesztő műveletek így nem jelennek meg a Karakter interfészén, és a Core sem változik.
 - **Component Configurator**: a [Mentés](#mentés) után a motor újraindítás nélkül újraolvassa és alkalmazza a konfigurációt. A konfigurációs ablak integrált módban a közös szolgáltatáspéldányt kapja, önálló (F5) módban saját példányt hoz létre ([Az ablak létrehozása](#az-ablak-létrehozása)).
 - **Half Sync / Half Async**: a UI szál szinkron marad (szerkesztés, gyors validálás, kirajzolás), a lassú munka (médiaellenőrzés, képkocka-betöltés, mentés) aszinkron, a háttérben fut. Az eredmények és a modell eseményei a `Dispatcher`-en keresztül, sorban jutnak vissza a UI szálra ([Élő előnézet](#élő-előnézet), [Mentés](#mentés)).
-- **Thread-Safe Interface** és **Monitor Object**: az `IConfigurationEditor` műveletei szálbiztosak, és az előnézeti [`Animation`](../../src/MonkeyStack.Core/Animation/Animation.cs) példányok (fagyasztott képkockákkal) a háttérszálon készülhetnek, miközben a UI szál rajzolja őket.
+- **Thread-Safe Interface** és **Monitor Object**: az `IConfigurationEditor` műveletei szálbiztosak, és az előnézeti [`Animation`](../../src/MonkeyStack.Core/Animation/Animation.cs) példányok (fagyasztott képkockákkal) a háttérszálon készülhetnek, és a motor léptetheti őket, miközben a UI szál rajzolja őket.
 
 ---
 

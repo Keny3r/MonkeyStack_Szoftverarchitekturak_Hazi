@@ -61,8 +61,9 @@ public interface IConfigurationEditor
 
     /// <summary>
     /// Előnézeti animáció a (még nem mentett) forrásból, az aktuális karakterméretre skálázva, ugyanazzal a
-    /// betöltéssel és skálázással, mint a karakter animációi. Külön példány: a Karakter nem kapja meg, és a
-    /// szolgáltatás nem lépteti (a View lépteti); karakterméret-változáskor átméreteződik.
+    /// betöltéssel és skálázással, mint a karakter animációi. Külön példány: a Karakter nem kapja meg, de a
+    /// motor a karakter animációival együtt lépteti (<c>UpdateAnimations</c>), a View csak rajzolja;
+    /// karakterméret-változáskor átméreteződik.
     /// Ugyanannak a forrásnak a képkockái megosztottak.
     /// </summary>
     /// <exception cref="MediaLoadException">Ha a forrás nem tölthető be.</exception>
@@ -72,7 +73,8 @@ public interface IConfigurationEditor
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Eldobja a kiadott előnézeti animációkat (Elvetéskor, mentés után és az ablak bezárásakor).
+    /// Eldobja a kiadott előnézeti animációkat (Elvetéskor, mentés után és az ablak bezárásakor);
+    /// ezután a motor már nem lépteti őket.
     /// </summary>
     void ReleasePreviewAnimations();
 }
