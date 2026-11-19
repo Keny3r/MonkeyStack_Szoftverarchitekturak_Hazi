@@ -12,6 +12,8 @@ Konfigurációs ablak.
 
 SQLite adatbázis.
 
+[Séma és validálás](./schema.md)
+
 
 ## Részletes MVC terv
 
