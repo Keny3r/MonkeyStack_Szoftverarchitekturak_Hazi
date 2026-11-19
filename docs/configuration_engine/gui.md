@@ -78,8 +78,8 @@ A „Karakter” fülön, a [méret](#1-karakter-mérete) alatt. Minden [mozgás
 | Előnézet | [élő előnézet](#élő-előnézet) | – |
 
 - A legördülő lista a szerkesztett másolat forrásait mutatja, így a „Források” fülön újonnan tallózott forrás mentés előtt is azonnal választható (az [ideiglenes azonosítóján](#tallózás) keresztül).
-- „Nincs animáció” lehetőség nincs: a beépített alapanimációk is animációs források ([Tárolás](./schema.md#tárolás)), így mindig választható érvényes forrás.
-- Ha egy állapot sora betöltéskor hiányzott vagy kimaradt, a karakter a beépített alapértelmezett animációt használja ([Validálás](./schema.md#validálás)). Ilyenkor a sorban üres a forrás, és a sor jelzi, hogy forrást kell választani; a hiba a [Hibajelzés](#hibajelzés) szerint jelenik meg.
+- „Nincs animáció” lehetőség nincs: az alapanimációkat képként szállítjuk, és első indításkor animációs forrásként kerülnek be ([Tárolás](./schema.md#tárolás)), így mindig választható érvényes forrás.
+- Ha egy állapot sora betöltéskor hiányzott vagy kimaradt, a tároló a szállított alapanimációra állítja vissza, és ez a [kihagyott elemek](#kihagyott-elemek) között jelenik meg ([Validálás](./schema.md#validálás)). A sorban így **mindig van kiválasztott forrás**, üres állapot nincs. Mentéskor a validátor minden állapothoz megkövetel egy animációt.
 - Irányonkénti animáció nincs: balra nézéskor a Karakter View tükröz ([Karakter és Fizika](../mvc_architecture.md#view-réteg-1)), ezért az előnézet mindig a tükrözetlen képet mutatja.
 - A módosítások a szerkesztett másolatba kerülnek, és **Mentés**kor tárolódnak ([Mentés](#mentés)).
 
@@ -104,7 +104,7 @@ Kizáró csoport: [fire ▾]      Prioritás: [20]
 
 #### Rétegek listája
 
-- **Sorrend:** csökkenő `ZIndex`, így a legfelső réteg áll legelöl ([schema.md](./schema.md#3-behaviorrule--viselkedési-szabály), a specifikáció „legfelső legelőször” elvárása). Azonos `ZIndex` esetén a felvétel sorrendje dönt. A lista a `ZIndex` mező elhagyásakor rendeződik újra, nem gépelés közben, hogy a kijelölés ne ugráljon.
+- **Sorrend:** csökkenő `ZIndex`, így a legfelső réteg áll legelöl ([schema.md](./schema.md#3-behaviorrule--viselkedési-szabály), a specifikáció „legfelső legelőször” elvárása). Azonos `ZIndex` esetén az `Id` dönt, ugyanúgy, mint a kirajzolásnál: a lista a kirajzolási sorrend fordítottja, így mindig a felül rajzolt réteg áll elöl. A lista a `ZIndex` mező elhagyásakor rendeződik újra, nem gépelés közben, hogy a kijelölés ne ugráljon.
 - **Oszlopok:** engedélyezés (jelölőnégyzet, a listából is kapcsolható), név, a feltétel rövid szöveges alakja (pl. `CPU > 80 %`, `20:30–06:00`), `ZIndex`, [élő előnézet](#élő-előnézet).
 - **Figyelmeztetések a sorban:** hibás mező esetén a sor hibát jelez ([Hibajelzés](#hibajelzés)). Ha a szabály metrikájának [mintavételezése](#5-mintavételezés) ki van kapcsolva, a sor jelzi, hogy a szabály így sosem teljesül ([schema.md](./schema.md#5-metricpolling--rendszeresemény-mintavételezés)).
 - **Új szabály:** a lista legfelső rétegeként jön létre (`ZIndex` = a legnagyobb meglévő + 1, legfeljebb 100), alapértékekkel és kijelölve. Forrás nincs kiválasztva, ezt a felhasználónak kell megadnia.
@@ -156,7 +156,7 @@ Név:     [fire_big        ]     Típus: GIF
 - **Fájl tallózása** (`OpenFileDialog`, szűrő: `.gif`, `.png`, `.jpg`, `.jpeg`, `.bmp`): `.gif` esetén `Gif`, egyébként `SpriteSheet` típusú forrás jön létre.
 - **Mappa tallózása** (`OpenFolderDialog`): `ImageFolder` típusú forrás jön létre.
 - A típust a View a választásból határozza meg, ezért a részletekben csak felirat. A **Csere…** gomb ugyanilyen típusú fájlt vagy mappát enged választani.
-- Az új forrás neve a fájl vagy mappa neve; ha ez már foglalt, sorszámot kap (pl. `fire (2)`), mert a névnek egyedinek kell lennie.
+- Az új forrás neve a fájl vagy mappa neve; ha ez már foglalt, sorszámot kap (pl. `fire (2)`), mert a névnek egyedinek kell lennie. Az ütközést a View a validátorhoz hasonlóan kis- és nagybetűtől függetlenül vizsgálja (`Fire` és `fire` ütközik).
 - Az új forrás egyedi, negatív **ideiglenes azonosítót** kap (`-1`, `-2`, …), így mentés előtt is hivatkozhat rá egy mozgási animáció vagy szabály. Mentéskor a tároló a valódi azonosítót a hivatkozásokkal együtt visszaírja a View objektumaiba ([Ideiglenes azonosítók](./implementation.md#ideiglenes-azonosítók)).
 - Tallózás után a View a háttérben lefuttatja a teljes médiaellenőrzést ([`IMediaValidator`](../../src/ConfigurationEngine/Validation/IMediaValidator.cs), `Full`), így a hibák (pl. hálózati útvonal, túl nagy fájl, nem dekódolható kép) már a mentés előtt megjelennek ([Médiafájlok validálása](./schema.md#médiafájlok-validálása), [Hibajelzés](#hibajelzés)). Az ellenőrzés idején a sor „ellenőrzés…” állapotot mutat, a felület nem blokkolódik.
 
@@ -222,8 +222,8 @@ Minden sor, amelyhez animáció tartozik ([mozgási animációk](#2-mozgási-ani
 
 - A View a [modellen keresztül](#kapcsolat-a-modellel) kér a szolgáltatástól egy **előnézeti** [`IAnimation`](../../src/MonkeyStack.Core/Animation/IAnimation.cs) példányt a szerkesztett forráshoz és sebességhez. A szolgáltatás ugyanazzal a betöltéssel és skálázással készíti el, mint a karakter animációit ([Animációk előállítása](./schema.md#animációk-előállítása)), így az előnézet pontosan azt mutatja, ami mentés után a karakteren megjelenik.
 - Az előnézeti animációk **külön példányok**: a Karakter nem kapja meg őket. A **motor lépteti őket** a karakter animációival együtt (`UpdateAnimations`), a [közös modell](../mvc_architecture.md#animáció) szerint; a View csak rajzol. Ugyanannak a forrásnak a képkockái megosztottak, így egy forrás csak egyszer töltődik be.
-- **Sebesség változásakor** a View csak az előnézeti példány `FramesPerSecond` értékét állítja át, újratöltés nem kell. **Forrás változásakor** (másik forrás kiválasztása, tallózás, csere, sprite sheet rács módosítása) új előnézeti animációt kér.
-- **Méret változásakor** ([Karakter mérete](#1-karakter-mérete)) az előnézeti animációk is átméreteződnek.
+- A View **egyik animációt sem módosítja**, csak rajzolja őket. Ezért **sebesség vagy forrás változásakor** (másik forrás kiválasztása, tallózás, csere, sprite sheet rács módosítása) új előnézeti animációt kér, a régit pedig a `ReleasePreviewAnimations` dobja el. A képkockák megosztottak, így sebességváltáskor a forrás nem töltődik be újra.
+- **Méret változásakor** ([Karakter mérete](#1-karakter-mérete)) az előnézeti animációkat is a motor méretezi át; a View ilyenkor sem módosítja őket.
 - A betöltés a háttérben fut. Addig a sor „betöltés…” állapotot mutat; ha a forrás nem tölthető be, az előnézet helyén a hiba üzenete jelenik meg ([Hibajelzés](#hibajelzés)).
 
 #### Kirajzolás
@@ -263,11 +263,11 @@ A validátor gyors és mellékhatás nélküli, ezért a View minden módosítá
 
 #### Kihagyott elemek
 
-Betöltéskor a tároló a hibás elemeket kihagyja, és a [`ConfigurationLoadResult`](../../src/ConfigurationEngine/Storage/ConfigurationLoadResult.cs) `DroppedItems` listájában adja vissza (okkal együtt). Ezek nincsenek benne a szerkesztett másolatban, ezért a View külön mutatja őket:
+Betöltéskor a tároló a hibás elemeket kihagyja, és a [`ConfigurationLoadResult`](../../src/ConfigurationEngine/Storage/ConfigurationLoadResult.cs) `DroppedItems` listájában adja vissza (okkal együtt). Ezek nincsenek benne a szerkesztett másolatban, ezért a View külön mutatja őket. Kivétel a mozgásállapot sora: azt a tároló a szállított alapanimációra állítja vissza, így a másolatban is szerepel ([Mozgási animációk](#2-mozgási-animációk)), a kihagyott elemek között pedig az eredeti hiba látszik.
 
 - **Figyelmeztető sáv** az ablak tetején: „N elem kimaradt betöltéskor” és **Részletek** gomb. Ha az adatbázis sérült volt és alapértékekkel jött létre (`DatabaseWasReset`), a sáv ezt is jelzi, a `config.db.bak` fájl említésével.
 - A **Részletek** panel elemenként mutatja a típust, a nevet (vagy kulcsot) és az okokat. Ha egy elem csak azért maradt ki, mert az általa használt forrás hibás, ez is az okok között szerepel ([`DroppedItem`](../../src/ConfigurationEngine/Validation/DroppedItem.cs)).
-- A `DroppedItem` az elem adatait nem tartalmazza, ezért a kihagyott elem nem nyitható meg szerkesztésre. Ha a felhasználó vissza szeretné kapni, a megfelelő fülön újra felveszi, helyes értékekkel.
+- A `DroppedItem` az elem adatait nem tartalmazza, ezért a kihagyott elem nem nyitható meg szerkesztésre. Ha a felhasználó vissza szeretné kapni, a megfelelő fülön újra felveszi, helyes értékekkel (mozgásállapotnál a sorban választ másik forrást).
 - **Törlés:** a mentés a teljes tárolt állapotot lecseréli ([`IConfigurationEditor.SaveAsync`](../../src/ConfigurationEngine/IConfigurationEditor.cs)), ezért a kihagyott elemek **mentéskor véglegesen törlődnek**. A Részletek panel és a mentés előtti megerősítés ezt kifejezetten jelzi ([Mentés](#mentés)).
 
 ---

@@ -33,8 +33,8 @@ public interface IConfigurationEditor
 
     /// <summary>
     /// Egy animációs forrás teljes (<see cref="MediaValidationDepth.Full"/>) médiaellenőrzése a háttérben,
-    /// tallózás vagy csere után. A hibák kulcsa a forrás <c>Id</c>-ja (negatív ideiglenes azonosítónál is;
-    /// 0 azonosítójú új forrásnál a listabeli index, <c>"#index"</c> alakban).
+    /// tallózás vagy csere után. A hibák kulcsa a forrás <c>Id</c>-ja; új forrásnál ez a negatív ideiglenes
+    /// azonosító (új forrás <c>Id</c>-ja sosem 0).
     /// </summary>
     Task<IReadOnlyList<ValidationError>> ValidateMediaAsync(
         AnimationSource source,
@@ -62,9 +62,9 @@ public interface IConfigurationEditor
     /// <summary>
     /// Előnézeti animáció a (még nem mentett) forrásból, az aktuális karakterméretre skálázva, ugyanazzal a
     /// betöltéssel és skálázással, mint a karakter animációi. Külön példány: a Karakter nem kapja meg, de a
-    /// motor a karakter animációival együtt lépteti (<c>UpdateAnimations</c>), a View csak rajzolja;
-    /// karakterméret-változáskor átméreteződik.
-    /// Ugyanannak a forrásnak a képkockái megosztottak.
+    /// motor a karakter animációival együtt lépteti (<c>UpdateAnimations</c>), a View csak rajzolja, és nem
+    /// módosítja (sebességváltáskor új előnézetet kér); karakterméret-változáskor átméreteződik.
+    /// Ugyanannak a forrásnak a képkockái megosztottak, így egy új előnézet nem tölti be újra a forrást.
     /// </summary>
     /// <exception cref="MediaLoadException">Ha a forrás nem tölthető be.</exception>
     Task<IAnimation> CreatePreviewAnimationAsync(
