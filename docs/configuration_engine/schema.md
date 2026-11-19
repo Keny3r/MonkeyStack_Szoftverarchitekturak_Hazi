@@ -1,6 +1,6 @@
 ## Konfigurációs séma és validálás
 
-Ez a dokumentum rögzíti, hogy a [Konfigurációs motor](../components.md#konfigurációs-motor) **mit enged konfigurálni**, milyen formában tárolja (SQLite), és milyen szabályok szerint validálja az adatokat. Ebből állítja elő a motor az [Animációs motor](../components.md#animációs-motor) számára az animációkat, és ezek a beállítások határozzák meg a fizikai paramétereket és az [OS esemény értesítő motor](../components.md#os-esemény-értesítő-motor) mintavételezési gyakoriságát is.
+Ez a dokumentum rögzíti, hogy a [Konfigurációs motor](../components.md#konfigurációs-motor) **mit enged konfigurálni**, milyen formában tárolja (SQLite), és milyen szabályok szerint validálja az adatokat. Ebből állítja elő a motor az [Animációs motor](../components.md#animációs-motor) számára az animációkat, és ezek a beállítások határozzák meg az [OS esemény értesítő motor](../components.md#os-esemény-értesítő-motor) mintavételezési gyakoriságát is.
 
 Fogalmak: [Szótár](../../README.md#szótár). Komponens áttekintés: [overview.md](./overview.md). A komponensek közös modellje: [MVC architektúra](../mvc_architecture.md#config-engine).
 
@@ -121,7 +121,7 @@ Az overlay animáció a karakterrel azonos helyen, a karakter **fölé rajzolva*
 
 #### Metrikák és értéktartományok
 
-A metrikák a [`OsEventDataRegistry`](../../src/MonkeyStack.Core/Events/OsEventDataRegistry.cs) mezőire képződnek le:
+A [`Metric`](../../src/MonkeyStack.Core/Events/Metric.cs) közös típus a Core-ban: a szabályok, a mintavételezési beállítások és az OS esemény értesítő motor is ezt használja. A metrikák a [`OsEventDataRegistry`](../../src/MonkeyStack.Core/Events/OsEventDataRegistry.cs) mezőire képződnek le:
 
 | `Metric` | Forrás mező | Mértékegység | Tartomány |
 |---|---|---|---|
@@ -166,11 +166,14 @@ Egyetlen sor (`Id = 1`); ha hiányzik, az alapértékekkel jön létre.
 | `GravityPxPerSec2` | int | 100–10000 | 2000 |
 | `FollowCursor` | bool | – | igaz |
 
-A méretet az [`IConfigurationService`](../../src/MonkeyStack.Core/Configuration/IConfigurationService.cs) `CharacterWidth` és `CharacterHeight` tulajdonsága teszi elérhetővé. Módosításakor minden animáció átméreteződik, és a `ConfigurationChanged` esemény tüzel. A sebességet, a gravitációt és a kurzorkövetést a karakter fizikai modellje használja (a specifikáció szerinti "mozgási és fizikai paraméterek finomhangolása").
+A méretet az [`IConfigurationService`](../../src/MonkeyStack.Core/Configuration/IConfigurationService.cs) `CharacterWidth` és `CharacterHeight` tulajdonsága teszi elérhetővé. Módosításakor minden animáció átméreteződik, és a `ConfigurationChanged` esemény tüzel. A konfigurációs ablakban csak a méret állítható: a karakter fizikai modellje fix paraméterekkel fut ([Karakter és Fizika](../mvc_architecture.md#karakter-és-fizika)). A `WalkSpeedPxPerSec`, `GravityPxPerSec2` és `FollowCursor` mezők alapértékekkel tárolódnak, a [továbbfejlesztéshez](#továbbfejlesztési-lehetőségek).
 
 ### 5. `MetricPolling` – Rendszeresemény-mintavételezés
 
-Metrikánként egy sor (a specifikáció szerinti "konfigurálható gyakoriságú monitorozás"). Ez alapján kérdezi le az OS esemény értesítő motor az egyes metrikákat.
+Metrikánként egy sor (a specifikáció szerinti "konfigurálható gyakoriságú monitorozás"). Az OS esemény értesítő motor ezt az [`IPollingSettingsProvider`](../../src/MonkeyStack.Core/Events/IPollingSettingsProvider.cs) interfészen keresztül kapja meg, amelyet a Konfigurációs motor valósít meg, és a host ad át. Így az OS motor csak a Core-tól függ.
+
+- `GetPollingInterval(metric)`: a beállított gyakoriság, kikapcsolt metrikára `null`.
+- `PollingSettingsChanged`: csak akkor tüzel, ha a mintavételezési beállítások változtak (a régi és az új konfiguráció összevetése alapján), más konfigurációs változásra nem.
 
 | Mező | Típus | Tartomány | Alapérték |
 |---|---|---|---|
@@ -254,6 +257,7 @@ A [javasolt minták](../patterns.md) közül, a [közös modell mintáival](../m
 
 - **Component Configurator**: a konfiguráció futás közben, újraindítás nélkül cserélhető. A konfigurációs ablakban mentett változtatás után a motor újraolvassa és validálja az adatbázist, újraépíti az animációkat, és a `ConfigurationChanged` eseménnyel jelzi a változást a Karakternek.
 - **Wrapper Facade**: az [`IConfigurationService`](../../src/MonkeyStack.Core/Configuration/IConfigurationService.cs) mögé rejtjük az EF Core-t, az SQLite-ot és a fájlrendszert. A hívó csak metrikákat és mozgásállapotot ad át, és kész, fix méretre skálázott, folyamatosan léptetett `IAnimation` objektumokat kap vissza.
+- **Extension Interface**: a `ConfigurationService` szerepenként külön interfészt ad, és minden kliens csak azt kapja meg, amelyikre szüksége van: a Karakter az `IConfigurationService`-t, az OS esemény értesítő motor az `IPollingSettingsProvider`-t. Az OS motor így nem látja az animációkat, és nem kap értesítést a számára érdektelen változásokról.
 - **Monitor Object**, **Scoped Locking** és **Thread-Safe Interface**: az OS események háttérszálról érkeznek, a Karakter ~60 FPS-sel olvas, miközben a UI szálon mentés történhet. A [`ConfigurationService`](../../src/ConfigurationEngine/ConfigurationService.cs) publikus műveletei egy közös zár (`lock (_syncRoot)`) alatt futnak. Újratöltéskor az új szabályok és animációk a záron kívül készülnek el (a lassú képbetöltés nem blokkolja az olvasókat), és a zár alatt egyben cserélődnek le.
 
 ---
@@ -263,5 +267,6 @@ A [javasolt minták](../patterns.md) közül, a [közös modell mintáival](../m
 - Összetett feltételek (ÉS / VAGY több metrikára) egy szabályon belül.
 - Hiszterézis vagy minimális aktív idő ("legalább N másodpercig teljesül"), hogy a határérték körül ingadozó metrika ne villogtassa az overlay-t.
 - A GIF fájlokba ágyazott, képkockánként eltérő időzítés megtartása.
+- Állítható séta sebesség, gravitáció és kurzorkövetés (a mezők már tárolódnak a `CharacterSettings`-ben).
 - Karaktercsomagok importálása és exportálása (zip + manifest), ugyanezzel a validálással.
 - Több konfigurációs profil, és váltás köztük.
