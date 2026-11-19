@@ -19,3 +19,4 @@ SQLite adatbázis.
 
 - [Config Engine MVC terv](../mvc_architecture.md#config-engine)
 - [Animáció modell és View](../mvc_architecture.md#animáció)
+- [Konfigurációs ablak (GUI terv)](./gui.md)
