@@ -96,7 +96,7 @@ A sprite sheet képkockái balról jobbra, majd fentről lefelé haladva olvasó
 | `AnimationSourceId` | int (FK) | igen | létező `AnimationSource` |
 | `FramesPerSecond` | real | igen | 1–60 (alapértelmezés 10) |
 
-Minden mozgásállapothoz **legfeljebb egy** sor tartozik. Ha egy állapothoz nincs (érvényes) sor, a motor a beépített alapértelmezett animációt adja vissza, így a karakter sosem tűnik el. A beépített animáció nem animációs forrás, a motor kódból állítja elő, ezért a hiányzó sor nem hiba.
+Minden mozgásállapothoz **pontosan egy** sor tartozik, ezt a validátor mentéskor ellenőrzi. Az alapanimációkat az alkalmazás képként szállítja, és első indításkor animációs forrásként kerülnek be ([Tárolás](#tárolás)). Ha egy állapot sora betöltéskor hiányzik vagy hibás, a szállított alapanimáció érvényes helyette, így a karakter sosem tűnik el.
 
 A séma irányonkénti animációt nem tárol: ha a karakter balra néz, a Karakter View a karaktert és az overlay-eket is vízszintesen tükrözi ([Karakter és Fizika](../mvc_architecture.md#view-réteg-1)).
 
@@ -211,7 +211,7 @@ Betöltéskor a hibás sorokat **kihagyjuk és naplózzuk**, nem állítjuk le m
 |---|---|
 | Hibás `AnimationSource` | kimarad; az erre hivatkozó szabályok és mozgási animációk is kimaradnak |
 | Hibás `BehaviorRule` | kimarad |
-| Hiányzó / hibás `MovementAnimation` | beépített alapértelmezett animáció |
+| Hiányzó / hibás `MovementAnimation` | a szállított alapanimáció (ha a forrása is hiányzik, az is visszakerül) |
 | Hiányzó / hibás `CharacterSettings`, `MetricPolling` sor | alapértékek |
 | Ismeretlen enum szöveg (pl. `Metric = "Gpu"`) | a sor kimarad |
 | Hiányzó vagy sérült adatbázisfájl | a sérült fájl `config.db.bak`-ként félrekerül, és egy új, alapértékekkel feltöltött adatbázis jön létre |
@@ -237,7 +237,7 @@ A felhasználó tetszőleges fájlt tallózhat, ezért ezek kezelése biztonság
 - **Képsorozat-mappa**: legalább 1 kép, és minden kép azonos méretű.
 - Médiafájlból **soha nem futtatunk kódot** és nem töltünk be más fájlt.
 
-Mentéskor a teljes ellenőrzés a háttérben fut. Betöltéskor a tároló csak a gyors ellenőrzéseket végzi (útvonal, létezés, kiterjesztés, méret); a dekódolás a képkockák betöltésekor történik. Ha egy forrás ekkor mégsem tölthető be, a mozgásállapot a beépített alapértelmezett animációt kapja, a rá hivatkozó szabályok pedig nem jelennek meg.
+Mentéskor a teljes ellenőrzés a háttérben fut. Betöltéskor a tároló csak a gyors ellenőrzéseket végzi (útvonal, létezés, kiterjesztés, méret); a dekódolás a képkockák betöltésekor történik. Ha egy forrás ekkor mégsem tölthető be, a mozgásállapot a szállított alapanimációt kapja, a rá hivatkozó szabályok pedig nem jelennek meg.
 
 #### SQL injection
 
@@ -249,7 +249,7 @@ Az adatbázist kizárólag EF Core-on keresztül érjük el, ami minden lekérde
 
 - Fájl: `%LOCALAPPDATA%\MonkeyStack\config.db` (nem kell hozzá rendszergazdai jog).
 - Sémaváltozás: EF Core migrációk (`__EFMigrationsHistory` tábla). Indításkor `Database.Migrate()` fut.
-- Első indításkor csak a karakter beállításai és a mintavételezés alapértékei jönnek létre; animációs forrás és szabály nem. A karakter addig a [beépített alapanimációt](#2-movementanimation--mozgásállapot-animációja) mutatja, amelyet a motor kódból állít elő. Példaszabályok (pl. a [Kiértékelés](#kiértékelés) tüzei és pizsamája) csak az alkalmazással szállított képekkel kerülhetnek be.
+- Első indításkor létrejönnek a karakter beállításai, a mintavételezés alapértékei, valamint a szállított alapanimációk: mozgásállapotonként egy képsorozat-mappa forrás (`movement/idle`, `movement/walking`, `movement/falling`, `movement/dragging`, az `assets` mappához képest) és a hozzá tartozó [mozgási animáció](#2-movementanimation--mozgásállapot-animációja) 10 képkocka/s sebességgel. Szabály nem jön létre; példaszabályok (pl. a [Kiértékelés](#kiértékelés) tüzei és pizsamája) szállított képekkel később bekerülhetnek.
 
 ---
 
