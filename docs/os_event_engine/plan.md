@@ -6,7 +6,7 @@
 > Fogalmak: [Szótár](../../README.md#szótár) · Minták: [patterns.md](../patterns.md) · Tech stack: [tech_stack.md](../tech_stack.md)
 > Felelős: 1 fő (OS események + tesztpanel). Platform: Windows, .NET 8, WPF.
 >
-> Igazítva: a `main` MVC-átalakításához ([Keny3r/MonkeyStack_Szoftverarchitekturak_Hazi#2](https://github.com/Keny3r/MonkeyStack_Szoftverarchitekturak_Hazi/pull/2)) és a `feat/config-engine-proposal` ág [integrációs javaslatához](https://github.com/Keny3r/MonkeyStack_Szoftverarchitekturak_Hazi/blob/feat/config-engine-proposal/docs/configuration_engine/integration.md) (utóbbi még nincs mergelve).
+> Igazítva: a `main` MVC-átalakításához ([Keny3r/MonkeyStack_Szoftverarchitekturak_Hazi#2](https://github.com/Keny3r/MonkeyStack_Szoftverarchitekturak_Hazi/pull/2)) és a Konfigurációs motor szerződéséhez ([Keny3r/MonkeyStack_Szoftverarchitekturak_Hazi#1](https://github.com/Keny3r/MonkeyStack_Szoftverarchitekturak_Hazi/pull/1), [schema.md](../configuration_engine/schema.md)). A 10. fejezet pontjait a [#3](https://github.com/Keny3r/MonkeyStack_Szoftverarchitekturak_Hazi/pull/3) review-ján elfogadták.
 
 ---
 
@@ -19,7 +19,7 @@ Ha csak ennyit olvasol:
 | Mi a publikus szerződés? | A Core-beli [`IOsEventNotifier`](../../src/MonkeyStack.Core/Events/IOsEventNotifier.cs) 7 eseménye (`CpuChanged`, `MemoryChanged`, …), amit az [`OsEventNotifier`](../../src/MonkeyStack.Core/Events/OsEventNotifier.cs) valósít meg. **Ez nem változik.** |
 | Ki küldi az eseményeket? | Az OS motor belépési pontja, az [`OsEventMonitorService`](../../src/OsEventEngine/OsEventMonitorService.cs). Ő méri a metrikákat, és a feldolgozási lánc végén az `OsEventNotifier.Notify…Changed(...)` metódusokat hívja. |
 | Milyen adatot kapok? | A Core [`*EventData`](../../src/MonkeyStack.Core/Events/) osztályait. Minden eseményhez **új példány** jön, ezeket nem használjuk újra. |
-| Melyik szálon jön az esemény? | **Sorosítva**, sosem párhuzamosan. Alapból azon a `SynchronizationContext`-en, amelyen a `Start()`-ot hívták (WPF-ben a UI szál). A fogyasztónak ettől függetlenül bármelyik szálat el kell tudnia viselni, ahogy a [konfigurációs integrációs javaslat](https://github.com/Keny3r/MonkeyStack_Szoftverarchitekturak_Hazi/blob/feat/config-engine-proposal/docs/configuration_engine/integration.md) is rögzíti. A [`CharacterEventCoordinator`](../../src/CharacterEngine/CharacterEventCoordinator.cs) ezt már teljesíti (`lock`). |
+| Melyik szálon jön az esemény? | **Sorosítva**, sosem párhuzamosan. Alapból azon a `SynchronizationContext`-en, amelyen a `Start()`-ot hívták (WPF-ben a UI szál). A fogyasztónak ettől függetlenül bármelyik szálat el kell tudnia viselni, ahogy a Konfigurációs motor is feltételezi (az [`IPollingSettingsProvider`](../../src/MonkeyStack.Core/Events/IPollingSettingsProvider.cs) eseménye is bármelyik szálon jöhet). A [`CharacterEventCoordinator`](../../src/CharacterEngine/CharacterEventCoordinator.cs) ezt már teljesíti (`lock`). |
 | Mikor jön esemény? | `Start()` után egyszer minden elérhető metrikára (kezdeti pillanatkép), utána csak **változáskor** (push, lásd [Kapcsolatok](../components.md#kapcsolatok)). |
 | Hogyan tesztelek 100% CPU nélkül? | Az OS ablak ([`MainWindow`](../../src/OsEventEngine/MainWindow.xaml.cs), „OS Mock View”) csúszkáival, vagy programból: `Simulation.SetSimulatedValue(Metric.Cpu, 95)`. A szimulált érték **ugyanazon a láncon** megy át, mint az élő, és szimulált módban a valódi mérés le sem fut. |
 | Mit NEM tud a motor? | A küszöbértékeket és a [viselkedési szabályokat](../../README.md#viselkedési-szabály). Ezek a [Konfigurációs motor](../configuration_engine/overview.md) dolga. A motor csak nyers értékeket küld. |
@@ -65,7 +65,7 @@ Az [MVC terv](../mvc_architecture.md#os-események) szerinti felosztás:
 
 **Hatókörön kívül:**
 - [Triggerfeltételek](../../README.md#triggerfeltétel) kiértékelése (Konfigurációs motor).
-- Perzisztencia, köztük a mintavételi gyakoriságok tárolása (Konfigurációs motor / SQLite, [`MetricPolling` javaslat](https://github.com/Keny3r/MonkeyStack_Szoftverarchitekturak_Hazi/blob/feat/config-engine-proposal/docs/configuration_engine/schema.md)).
+- Perzisztencia, köztük a mintavételi gyakoriságok tárolása (Konfigurációs motor / SQLite, [`MetricPolling`](../configuration_engine/schema.md#5-metricpolling--rendszeresemény-mintavételezés)).
 - [Ablakperem](../../README.md#ablakperem-járható-felület) / [`PlatformSegment`](../../src/MonkeyStack.Core/Character/PlatformSegment.cs) számítás (Karakter / fizika). Az ablak-felsoroló Win32 burkoló ott is újrahasznosítható lehet, erről egyeztetni kell.
 
 ### Nem-funkcionális követelmények
@@ -121,7 +121,7 @@ flowchart LR
     P -. írja .-> SNAP
     UI["OS Mock View<br/>(MainWindow)"] -. olvassa .-> SNAP
     UI -- "ISimulationControl" --> S1
-    PS["IPollingSettingsProvider<br/>(Konfigurációs motor, javaslat)"] -. PollingSettingsChanged .-> CFG["OsEventMonitorService.Reconfigure<br/>(Component Configurator)"]
+    PS["IPollingSettingsProvider<br/>(Core; a Konfigurációs motor valósítja meg)"] -. PollingSettingsChanged .-> CFG["OsEventMonitorService.Reconfigure<br/>(Component Configurator)"]
     CFG -. Init/Suspend/Resume .-> M1
 ```
 
@@ -169,7 +169,7 @@ A [patterns.md](../patterns.md) mintái közül az alábbiakat használjuk. Mind
 
 #### ✅ Component Configurator – futás közben (újra)konfigurálható monitorok
 - **Hol:** minden `MetricMonitor` megvalósítja az `IConfigurableComponent`-et (`Init`, `Fini`, `Suspend`, `Resume`, `Info`). A `MonitorRepository` tartja nyilván őket. Az `OsEventMonitorService.Reconfigure(options)` újraalkalmazza a beállításokat **újraindítás nélkül**: intervallumváltás → `Init` új periódussal, letiltás → `Suspend`, engedélyezés → `Resume`.
-- **Honnan jön a konfiguráció:** a [konfigurációs ág javaslata](https://github.com/Keny3r/MonkeyStack_Szoftverarchitekturak_Hazi/blob/feat/config-engine-proposal/docs/configuration_engine/integration.md) szerint a Core-ba kerülő `IPollingSettingsProvider` interfészen. Ezt a Konfigurációs motor valósítja meg, és a host adja át az `OsEventMonitorService`-nek. A szolgáltatás feliratkozik a `PollingSettingsChanged` eseményre, és ilyenkor `Reconfigure`-t hív. Így az OS motor **nem függ** a Konfigurációs motortól, csak a Core-tól. Amíg az interfész nincs mergelve, az `OsEventEngineOptions.Default` értékei érvényesek.
+- **Honnan jön a konfiguráció:** a Core-beli [`IPollingSettingsProvider`](../../src/MonkeyStack.Core/Events/IPollingSettingsProvider.cs) interfészen ([schema.md, MetricPolling](../configuration_engine/schema.md#5-metricpolling--rendszeresemény-mintavételezés)). Ezt a Konfigurációs motor valósítja meg, és a host adja át az `OsEventMonitorService`-nek. A szolgáltatás feliratkozik a `PollingSettingsChanged` eseményre, és ilyenkor `Reconfigure`-t hív. Így az OS motor **nem függ** a Konfigurációs motortól, csak a Core-tól. Amíg a host nem ad át szolgáltatót (pl. standalone futás), az `OsEventEngineOptions.Default` értékei érvényesek. Leképezés: `GetPollingInterval(m) == null` → `Enabled = false`, különben `Interval` = a visszaadott érték.
 - **Miért:** a követelmény „konfigurálható gyakoriságú monitorozás”. A felhasználó a konfigurációs ablakban állíthatja, és ennek alkalmazás-újraindítás nélkül kell érvényesülnie. Az `Info()` adja az OS Mock View „monitor állapot” oszlopát.
 
 #### ✅ Interceptor – kiterjeszthető feldolgozási lánc
@@ -253,7 +253,7 @@ A [patterns.md](../patterns.md) mintái közül az alábbiakat használjuk. Mind
 
 Közös belső reprezentáció: `MetricSample(Metric Metric, int Value, SampleOrigin Origin, DateTimeOffset Timestamp)`. A forrás `int?`-t ad vissza, ahol `null` = „nem elérhető”, ilyenkor nincs minta. Az `EventDispatcher` képezi le a Core adatmodellekre.
 
-A `Metric` felsorolás és az értéktartományok **megegyeznek** a [konfigurációs ág `Metric` / `ConfigurationLimits.MetricRange` definíciójával](https://github.com/Keny3r/MonkeyStack_Szoftverarchitekturak_Hazi/blob/feat/config-engine-proposal/docs/configuration_engine/schema.md). Az alapértelmezett intervallumok is onnan jönnek (`MetricPolling`, 250–60 000 ms). A cél egyetlen közös `Metric` felsorolás a Core-ban (lásd [10.](#10-egyeztetendő-a-többi-komponens-felelőseivel)).
+A közös [`MonkeyStack.Core.Events.Metric`](../../src/MonkeyStack.Core/Events/Metric.cs) felsorolást használjuk. Az értéktartományok és az alapintervallumok megegyeznek a Konfigurációs motor `ConfigurationLimits.MetricRange` / `MetricPolling` értékeivel ([schema.md](../configuration_engine/schema.md#metrikák-és-értéktartományok)). Most két helyen élnek (`MetricCatalog` és `ConfigurationLimits`): a #3 merge után közösen a Core-ba kerülnek.
 
 | Metrika | Win32 / .NET forrás | Számítás | Érték, tartomány | Alap intervallum | Megjegyzés |
 |---|---|---|---|---|---|
@@ -360,7 +360,7 @@ Integrált futásnál a `CharacterEngine` a host, és az `OsEventEngine` `App` o
 ```
 IOsEventNotifier.cs, OsEventNotifier.cs     publikus szerződés (meglévő, nem módosítjuk)
 *EventData.cs, OsEventDataRegistry.cs       adatmodellek (meglévő)
-Metric.cs, IPollingSettingsProvider.cs      (javaslat, a konfigurációs ággal közösen – lásd 10.)
+Metric.cs, IPollingSettingsProvider.cs      közös, a #1-gyel került be (a Konfigurációs motorral közös)
 ```
 
 `src/OsEventEngine/`:
@@ -371,7 +371,6 @@ OsEventEngine/
 ├─ App.xaml(.cs)                   standalone F5 indítás (5.3)
 ├─ MainWindow.xaml(.cs)            OS Mock View (meglévő konstruktorral)
 ├─ Monitoring/
-│  ├─ Metric.cs                    átmenetileg itt, amíg a Core-ba nem kerül
 │  ├─ MetricSample.cs, SampleOrigin.cs
 │  ├─ IMetricMonitor.cs, IConfigurableComponent.cs, ISimulatable.cs   (Extension Interface)
 │  ├─ MetricMonitor.cs             PeriodicTimer ciklus + TriggerNow   (Half-Async, Component Configurator)
@@ -394,17 +393,18 @@ OsEventEngine/
 │  └─ EventDispatcher.cs           Channel fogyasztó + SyncContext.Post + Notify…Changed (Half-Sync)
 ├─ State/
 │  └─ MetricSnapshotStore.cs       Monitor Object, Thread-Safe Interface, Scoped Locking
+├─ Platforms/
+│  └─ Win32PlatformProvider.cs     IPlatformProvider megvalósítása (M11, platform_provider_proposal.md)
 └─ ViewModels/
    └─ OsMockViewModel.cs, MetricRowViewModel.cs, ObservableObject.cs, RelayCommand.cs
 ```
 
-Láthatóság: **publikus** csak az `OsEventMonitorService`, `OsEventEngineOptions`, `MonitorOptions`, `Metric`, `SourceMode`, `MetricDescriptor`, `ISimulationControl` és a `MainWindow`. Minden más `internal`. Tesztekhez: `[assembly: InternalsVisibleTo("OsEventEngine.Tests")]`.
+Láthatóság: **publikus** csak az `OsEventMonitorService`, `OsEventEngineOptions`, `MonitorOptions`, `MetricCatalog`, `MonitorStatus`, `SourceMode`, `MetricDescriptor`, `ISimulationControl` és a `MainWindow`. Minden más `internal`. Tesztekhez: `[assembly: InternalsVisibleTo("OsEventEngine.Tests")]`.
 
 ### 6.2 Kulcs interfészek
 
 ```csharp
-// Átmenetileg OsEventEngine-ben; cél: MonkeyStack.Core.Events.Metric (a konfigurációs ággal közös)
-public enum Metric { Cpu, Memory, Disk, Battery, WindowCount, Time, Inactivity }
+// A Metric a Core-ból jön: MonkeyStack.Core.Events.Metric { Cpu, Memory, Disk, Battery, WindowCount, Time, Inactivity }
 
 internal enum SampleOrigin { Live, Simulated }
 internal readonly record struct MetricSample(Metric Metric, int Value, SampleOrigin Origin, DateTimeOffset Timestamp);
@@ -541,16 +541,17 @@ Elfogadási kritérium: minden unit teszt zöld, és standalone futásnál a CPU
 
 Minden lépés külön commit / PR. A zárójelben a lefedett minták. Az M1–M7 lépések **csak a saját komponensünket** (`src/OsEventEngine`, `tests/OsEventEngine.Tests`) érintik.
 
-- [ ] **M1 – Alapok:** `Metric`, `MetricSample`, `IMetricSource`, `NativeMethods`, 7 élő forrás (*Wrapper Facade*).
+- [ ] **M1 – Alapok:** `MetricSample`, `IMetricSource`, `NativeMethods`, 7 élő forrás (*Wrapper Facade*).
 - [ ] **M2 – Monitorok:** `MetricMonitor` (PeriodicTimer + `TriggerNow`), `MonitorRepository`, `OsEventEngineOptions` (*Component Configurator*, *Extension Interface*).
 - [ ] **M3 – Lánc és kiküldés:** `Channel`, `InterceptorChain` + 4 interceptor, `EventDispatcher` → `OsEventNotifier.Notify…Changed`, `MetricSnapshotStore` (*Half-Sync/Half-Async*, *Interceptor*, *Monitor Object*, *Thread-Safe Interface*, *Scoped Locking*).
 - [ ] **M4 – `OsEventMonitorService` kiépítése:** `Start` / `Reconfigure` / `Dispose` / `GetSnapshot`, a meglévő tagok megtartásával (5.1 táblázat), standalone `App.OnStartup` naplózó feliratkozóval (*Facade*).
 - [ ] **M5 – Szimuláció:** `SimulatedSource`, `SwitchableSource`, `SimulationController`, `ISimulationControl`, `IsMockModeEnabled` átkötése (*Strategy*, *Proxy*, *Active Object* jelleg).
 - [ ] **M6 – OS Mock View:** `MainWindow` + `OsMockViewModel`, presetek (*MVC/MVVM*).
 - [ ] **M7 – Tesztek:** `OsEventEngine.Tests` projekt, a 8. fejezet szerint.
-- [ ] **M8 – Integráció (egyeztetés után):** `Start()` / `Dispose()` a `CharacterEngine` `App`-ban; `Metric` + `IPollingSettingsProvider` a Core-ba, `UsePollingSettings` bekötése (*Component Configurator*).
+- [ ] **M8 – Integráció (elfogadva a #3-ban):** `Start()` / `Dispose()` a `CharacterEngine` `App`-ban (Gergő és Frink Dávid), `UsePollingSettings` bekötése a Core-beli `IPollingSettingsProvider`-rel (*Component Configurator*).
 - [ ] **M9 – Reactor (opcionális, 2. fázis):** `Win32EventReactor` (WinEvent hook, `WM_POWERBROADCAST`, `WM_TIMECHANGE`) → `TriggerNow` (*Reactor*, *DCLO/Lazy*).
 - [ ] **M10 – Dokumentáció:** a ténylegesen megvalósult mintákat új fájlban dokumentálni (`docs/os_event_engine/patterns_applied.md`), osztály- és szekvenciadiagramokkal, a [Szótárra](../../README.md#szótár) hivatkozva.
+- [ ] **M11 – Platform szolgáltató (elfogadva a #3-ban, A opció):** `IPlatformProvider` a Core-ba (egyeztetve), `Win32PlatformProvider` az OS motorban, a [platform-javaslat](./platform_provider_proposal.md) döntései szerint (*Wrapper Facade*, *Reactor*, *Half-Sync/Half-Async*).
 
 Az M1–M7 után a komponens önállóan demózható.
 
@@ -560,16 +561,17 @@ Az M1–M7 után a komponens önállóan demózható.
 
 > ⚠️ A saját komponensen (`src/OsEventEngine`) kívüli módosítás **előtt** keresd meg az érintett komponens felelősét.
 
-| Téma | Érintett | Javaslat | Kell-e változtatás náluk? |
+| Téma | Érintett | Döntés ([#3](https://github.com/Keny3r/MonkeyStack_Szoftverarchitekturak_Hazi/pull/3) review) | Teendő |
 |---|---|---|---|
-| Indítás és leállítás | Animációs motor ([`CharacterEngine/App.xaml.cs`](../../src/CharacterEngine/App.xaml.cs)) | `OnStartup`-ban `SharedOsMonitorService.Start()`, `OnExit`-ben `Dispose()` ([0. fejezet](#0-tldr--agenteknek-és-csapattagoknak)). A létrehozás és a feliratkozás már megvan. | Igen, két rövid metódus. |
-| Közös `Metric` felsorolás | Konfigurációs motor + mindenki (`MonkeyStack.Core`) | A konfigurációs ág `ConfigurationEngine.Model.Metric`-je és a mi `Metric`-ünk azonos. Kerüljön a Core-ba (`MonkeyStack.Core.Events.Metric`), mert az `IPollingSettingsProvider` is erre hivatkozik, és a Core nem hivatkozhat a Konfigurációs motorra. | Igen, Core változás + a konfigurációs ág átírása. |
-| Mintavételi gyakoriság | Konfigurációs motor | Elfogadjuk az ő `IPollingSettingsProvider` javaslatukat és a `MetricPolling` alapértékeket. A host adja át (`UsePollingSettings`). | Igen, a javaslatuk mergelése (a konfigurációs ág a régi `main`-ről indult, ütközik a PR #2-vel). |
-| Mock út és a `Notify…` hívások | Az [mvc_architecture.md](../mvc_architecture.md#os-események) szerzője | A View ne hívja közvetlenül a `Notify…Changed`-et, hanem a `Simulation`-t (metrikánkénti mód, ugyanaz a lánc, [5.1](#51-szimuláció-működése)). Az `IsMockModeEnabled` megmarad kényelmi kapcsolónak. | Igen, néhány mondat a MVC dokumentumban. |
-| Minták szóhasználata | Mindenki | C# esemény = Observer; Reactor = Win32 értesítések demultiplexálása ([3. fejezet](#3-alkalmazott-architekturális-minták)). A védésen egységesen kell beszélni róla. | Igen, az MVC dokumentum minta-táblázatában a Reactor sor pontosítása. |
-| Új metrika felvétele | Mindenki (`MonkeyStack.Core`) | Új `*EventData` + `OsEventDataRegistry` mező + `IOsEventNotifier` esemény és `Notify…` metódus + `Metric` érték + coordinator feliratkozás. | Igen, Core és CharacterEngine változás. |
-| Projekt típusa | Mindenki | Az `OsEventEngine` WinExe, és a `CharacterEngine` hivatkozik rá. Ez .NET-ben működik, és az [MVC terv](../mvc_architecture.md#alapelvek-közös-modell-és-független-view-k) standalone F5 elvéhez kell is. Nem javaslunk változtatást. | Nem. |
-| Ablak-felsoroló újrahasznosítása | Animációs motor (fizika, [`PlatformSegment`](../../src/MonkeyStack.Core/Character/PlatformSegment.cs)) | A `NativeMethods` `EnumWindows` + DWM-szűrés logikája a platformszámításhoz is kell (az MVC terv ide is Wrapper Facade-ot ír). Később közös helyre kerülhet. | Opcionális. |
+| Indítás és leállítás | Karakter motor (Gergő, Frink Dávid), [`CharacterEngine/App.xaml.cs`](../../src/CharacterEngine/App.xaml.cs) | ✅ Elfogadva: `OnStartup`-ban `SharedOsMonitorService.Start()`, `OnExit`-ben `Dispose()` ([0. fejezet](#0-tldr--agenteknek-és-csapattagoknak)). | Náluk, **az M4 után** (addig a `Start()` `NotImplementedException`-t dob). |
+| Közös `Metric` felsorolás | Mindenki (`MonkeyStack.Core`) | ✅ Kész: [`MonkeyStack.Core.Events.Metric`](../../src/MonkeyStack.Core/Events/Metric.cs) (#1). Az OS motor a sajátját törölte. | – |
+| Mintavételi gyakoriság | Konfigurációs motor (Levente) | ✅ Kész: [`IPollingSettingsProvider`](../../src/MonkeyStack.Core/Events/IPollingSettingsProvider.cs) a Core-ban (#1), a host adja át (`UsePollingSettings`). | Nálunk M8. |
+| Tartományok és alapintervallumok egy helyen | Konfigurációs motor (Levente) | ⏳ Levente javaslata: a `MetricCatalog` és a `ConfigurationLimits` közös részét a #3 merge után a Core-ba, a `Metric` mellé. | Közös PR. |
+| Mock út és a `Notify…` hívások | Frink Dávid ([mvc_architecture.md](../mvc_architecture.md#os-események)) | ✅ Elfogadva: a View a `Simulation`-t hívja, nem közvetlenül a `Notify…Changed`-et ([5.1](#51-szimuláció-működése)). Az `IsMockModeEnabled` kényelmi kapcsoló marad. | Az MVC dokumentum frissítése (Frink Dávid). |
+| Minták szóhasználata | Mindenki | ✅ Elfogadva: C# esemény = Observer; Reactor = Win32 értesítések demultiplexálása ([3. fejezet](#3-alkalmazott-architekturális-minták)). | Az MVC minta-táblázat Reactor sorának pontosítása. |
+| Platformok (ablakperem, takarás, fullscreen) | Karakter motor (Gergő, Frink Dávid) | ✅ Elfogadva, A opció: `IPlatformProvider` a Core-ba, a megvalósítás az OS motorban ([platform-javaslat](./platform_provider_proposal.md#0-döntések)). | Nálunk M11. |
+| Új metrika felvétele | Mindenki (`MonkeyStack.Core`) | Folyamat: új `*EventData` + `OsEventDataRegistry` mező + `IOsEventNotifier` esemény és `Notify…` metódus + `Metric` érték + coordinator feliratkozás. | Egyeztetés kell. |
+| Projekt típusa | Mindenki | Marad: az `OsEventEngine` WinExe, a `CharacterEngine` hivatkozik rá (az [MVC terv](../mvc_architecture.md#alapelvek-közös-modell-és-független-view-k) standalone F5 elve). | – |
 
 ---
 
@@ -585,4 +587,4 @@ Az M1–M7 után a komponens önállóan demózható.
 | ADR-6 | `GetSystemTimes` a CPU-hoz | `PerformanceCounter`, WMI `Win32_Processor` | Nincs bemelegedés és nyelvi névprobléma, kicsi az overhead, nem kell külön csomag. | Saját delta-számítás (tesztelve). |
 | ADR-7 | `TimeProvider` absztrakció | `DateTime.Now`, `Task.Delay` közvetlenül | Determinisztikus unit tesztek (`FakeTimeProvider`), .NET 8 beépített. | Minimális plusz kód. |
 | ADR-8 | A Core `IOsEventNotifier` / `OsEventNotifier` **változatlan**, a `Notify…` metódusokon keresztül küldünk | Generikus `IObservable<MetricSample>`; saját belső `Publish` | A Karakter már erre épül, a közös modell stabilitása fontosabb. | A `Notify…` publikus, ezért konvencióval védjük (6.2). |
-| ADR-9 | **Közös `Metric` felsorolás és `IPollingSettingsProvider` a Core-ban** | Saját `MetricId`; az OS motor hivatkozik a Konfigurációs motorra | Egy fogalom, egy típus. A függési irány (OS → Core ← Konfig) megfelel a [Kapcsolatok](../components.md#kapcsolatok) fejezetnek. | Core változás, egyeztetés kell (10.). |
+| ADR-9 | **Közös `Metric` felsorolás és `IPollingSettingsProvider` a Core-ban** | Saját `MetricId`; az OS motor hivatkozik a Konfigurációs motorra | Egy fogalom, egy típus. A függési irány (OS → Core ← Konfig) megfelel a [Kapcsolatok](../components.md#kapcsolatok) fejezetnek. | Megvalósult a #1-gyel. |

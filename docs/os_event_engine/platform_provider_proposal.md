@@ -1,7 +1,21 @@
 # Javaslat: járható felületek (platformok) szolgáltatása – `IPlatformProvider`
 
-> Státusz: **JAVASLAT, egyeztetésre vár.** A [Karakter / fizika](../mvc_architecture.md#karakter-és-fizika) felelősének és a csapatnak jóvá kell hagynia, mert a `MonkeyStack.Core`-t és a `CharacterEngine`-t érinti.
+> Státusz: **ELFOGADVA** a [#3](https://github.com/Keny3r/MonkeyStack_Szoftverarchitekturak_Hazi/pull/3) review-ján (Frink Dávid, Karakter motor). Döntések: [0. fejezet](#0-döntések). Megvalósítás: [OS motor terv, M11](./plan.md#9-megvalósítási-lépések-mérföldkövek).
 > Szerző: OS esemény értesítő motor felelőse · Kapcsolódó: [OS motor terv](./plan.md) · [MVC terv](../mvc_architecture.md) · [Szótár](../../README.md#szótár)
+
+---
+
+## 0. Döntések
+
+A #3 review-ján (Frink Dávid, a Karakter motor nevében):
+
+| Kérdés | Döntés |
+|---|---|
+| Ki valósítsa meg? ([6.](#6-ki-valósítsa-meg)) | **A) opció**: az `IPlatformProvider` a `MonkeyStack.Core`-ba kerül, a `Win32PlatformProvider` az OS motorban lesz. Így minden Win32 / `EnumWindows` / DWM logika egy helyen marad. |
+| Mozogjon-e a karakter a húzott ablakkal? | **Nem.** Ha elmozdítják alóla, essen le (`Falling`). A `PlatformSegment` nem kap `SourceId`-t. |
+| Exkluzív fullscreen | **Nem kell elrejteni**, elég, ha a [3.3](#33-fullscreen-és-maximalizált-ablak) szerint leesik a monitor aljára. A `ScreenArea.HasFullscreenWindow` csak tájékoztató. |
+| Minimális platformszélesség | A **20 px-nél keskenyebb** (2 × 10 px szélső ráhagyásnál keskenyebb) szakaszokat a szolgáltató kiszűri. |
+| DPI manifest a hostban | Nyitott, a megvalósításkor egyeztetendő a Karakter motorral. |
 
 ---
 

@@ -8,8 +8,9 @@
 Windows rendszermetrikákat mér (CPU, memória, háttértár, akku, ablakszám, idő, inaktivitás), és **változáskor** C# eseményt küld a Karakternek. Tartozik hozzá egy csúszkás teszt-View, ami valódi terhelés nélkül szimulál. Küszöböket és szabályokat **nem** ismer (az a Konfigurációs motoré).
 
 ## Állapot (frissítsd, ha változik)
-- ✅ Publikus szerződés és belső interfészek (szerződés szintű kód, mint a konfigurációs ágon).
-- ⏳ Implementáció: M1 források → M2 monitorok → M3 lánc → M4 `Start`/`Reconfigure` → M5 szimuláció → M6 View → M7 tesztek ([plan.md 9.](./plan.md#9-megvalósítási-lépések-mérföldkövek)).
+- ✅ Publikus szerződés és belső interfészek (szerződés szintű kód, mint a Konfigurációs motornál, #1). A `Metric` a Core-ból jön.
+- ✅ Döntések a #3 review-ján: host bekötés, `Simulation`-alapú Mock út, Observer/Reactor szóhasználat, platform-szolgáltató nálunk (A opció).
+- ⏳ Implementáció: M1 források → M2 monitorok → M3 lánc → M4 `Start`/`Reconfigure` → M5 szimuláció → M6 View → M7 tesztek → M8 integráció → M11 platform-szolgáltató ([plan.md 9.](./plan.md#9-megvalósítási-lépések-mérföldkövek)).
 - `NotImplementedException`-t dobó tagot **ne hívj** a hostból, amíg a hozzá tartozó lépés nincs kész.
 
 ## Fájltérkép
@@ -18,7 +19,8 @@ Windows rendszermetrikákat mér (CPU, memória, háttértár, akku, ablakszám,
 | `src/MonkeyStack.Core/Events/IOsEventNotifier.cs`, `OsEventNotifier.cs` | **Közös szerződés, nem a miénk, ne módosítsd.** 7 esemény + `Notify…Changed`. |
 | `src/OsEventEngine/OsEventMonitorService.cs` | **Egyetlen publikus belépési pont** (Facade). |
 | `src/OsEventEngine/OsEventEngineOptions.cs` | `MonitorOptions`, `OsEventEngineOptions` (intervallum, deadband). |
-| `src/OsEventEngine/Monitoring/Metric.cs`, `MetricCatalog.cs` | Metrika enum, tartományok, alap intervallumok, UI-leírók. |
+| `src/MonkeyStack.Core/Events/Metric.cs`, `IPollingSettingsProvider.cs` | **Közös, ne módosítsd.** Metrika enum; a mintavételi beállítások forrása (a Konfigurációs motor valósítja meg). |
+| `src/OsEventEngine/Monitoring/MetricCatalog.cs` | Tartományok, alap intervallumok, UI-leírók (egyeznek a `ConfigurationLimits`-szel; később a Core-ba). |
 | `src/OsEventEngine/Monitoring/MetricSample.cs`, `MonitorInterfaces.cs` | Belső minta + `IMetricMonitor`, `IConfigurableComponent`, `ISimulatable`, `MonitorStatus`. |
 | `src/OsEventEngine/Sources/IMetricSource.cs` | Forrás interfész (élő Win32 vagy szimulált). |
 | `src/OsEventEngine/Pipeline/IEventInterceptor.cs` | Láncelem (Smoothing → ChangeFilter → Snapshot → Logging). |
@@ -58,4 +60,4 @@ Wrapper Facade: `Sources/*`, `Native/*` · Component Configurator: `IConfigurabl
 | Tesztek | [8. fejezet](./plan.md#8-tesztelési-terv) |
 | Mit kell egyeztetni, kivel | [10. fejezet](./plan.md#10-egyeztetendő-a-többi-komponens-felelőseivel) |
 | Döntések (ADR) | [11. fejezet](./plan.md#11-architekturális-döntések-adr-összefoglaló) |
-| Ablakperemek / fullscreen / takarás (javaslat, nem kész) | [platform_provider_proposal.md](./platform_provider_proposal.md) |
+| Ablakperemek / fullscreen / takarás (elfogadva, még nincs kódolva) | [platform_provider_proposal.md](./platform_provider_proposal.md) |
