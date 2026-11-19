@@ -8,7 +8,7 @@ using MonkeyStack.Core.Events;
 /// </summary>
 public class BehaviorRule
 {
-    /// <summary>Elsődleges kulcs; új, még nem mentett szabálynál 0.</summary>
+    /// <summary>Elsődleges kulcs; új, még nem mentett szabálynál 0 vagy egy egyedi negatív ideiglenes azonosító.</summary>
     public int Id { get; set; }
 
     /// <summary>Megjelenített név.</summary>

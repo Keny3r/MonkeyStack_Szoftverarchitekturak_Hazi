@@ -9,7 +9,10 @@ namespace ConfigurationEngine.Model;
 /// </summary>
 public class AnimationSource
 {
-    /// <summary>Elsődleges kulcs; új, még nem mentett forrásnál 0.</summary>
+    /// <summary>
+    /// Elsődleges kulcs. Új, még nem mentett forrásnál 0 vagy egy egyedi negatív ideiglenes azonosító;
+    /// mentés előtt csak negatív ideiglenes azonosítóval lehet rá hivatkozni (pl. egy új szabályból).
+    /// </summary>
     public int Id { get; set; }
 
     /// <summary>Egyedi, megjelenített név.</summary>
