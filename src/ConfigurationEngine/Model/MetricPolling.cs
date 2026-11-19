@@ -1,5 +1,7 @@
 namespace ConfigurationEngine.Model;
 
+using MonkeyStack.Core.Events;
+
 /// <summary>
 /// Egy rendszeresemény-metrika mintavételezési beállítása. Metrikánként egy példány.
 /// </summary>

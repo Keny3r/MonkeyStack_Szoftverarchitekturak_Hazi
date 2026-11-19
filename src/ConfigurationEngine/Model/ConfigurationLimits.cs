@@ -1,5 +1,7 @@
 namespace ConfigurationEngine.Model;
 
+using MonkeyStack.Core.Events;
+
 /// <summary>
 /// Zárt egész intervallum.
 /// </summary>

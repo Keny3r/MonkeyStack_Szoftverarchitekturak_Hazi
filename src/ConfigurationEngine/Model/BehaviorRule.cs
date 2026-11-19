@@ -1,5 +1,7 @@
 namespace ConfigurationEngine.Model;
 
+using MonkeyStack.Core.Events;
+
 /// <summary>
 /// Viselkedési szabály: egy triggerfeltétel és a hozzá rendelt overlay animáció.
 /// Kiértékelés és érvényes értékek: docs/configuration_engine/schema.md, "BehaviorRule".

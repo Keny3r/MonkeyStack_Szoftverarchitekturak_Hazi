@@ -1,9 +1,10 @@
-namespace ConfigurationEngine.Model;
+namespace MonkeyStack.Core.Events;
 
 /// <summary>
-/// A szabályokban használható rendszeresemény-metrikák.
-/// Mindegyik az <see cref="MonkeyStack.Core.Events.OsEventDataRegistry"/> egy mezőjére képződik le,
-/// az értéktartományokat a <see cref="ConfigurationLimits.MetricRange"/> adja meg.
+/// A figyelt rendszeresemény-metrikák (README "Rendszeresemény / Metrika (OS check)").
+/// Közös típus: a Konfigurációs motor szabályai és mintavételezési beállításai, valamint
+/// az OS esemény értesítő motor egyaránt ezt használja. Mindegyik az <see cref="OsEventDataRegistry"/>
+/// egy mezőjére képződik le.
 /// </summary>
 public enum Metric
 {
