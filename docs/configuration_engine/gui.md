@@ -58,7 +58,7 @@ A „Karakter” fül tetején, a [mozgási animációk](#2-mozgási-animációk
 
 A határokat a View a [`ConfigurationLimits.CharacterSizePx`](../../src/ConfigurationEngine/Model/ConfigurationLimits.cs) értékéből veszi, így ugyanazokat használja, mint a validátor.
 
-**Azonnali érvényesülés (kivétel a mentési alapelv alól):** érvényes érték beírásakor a View rögtön beállítja az [`IConfigurationService`](../../src/MonkeyStack.Core/Configuration/IConfigurationService.cs) `CharacterWidth` / `CharacterHeight` tulajdonságát. Ennek hatására minden animáció átméreteződik, és tüzel a `ConfigurationChanged` esemény ([schema.md](./schema.md#4-charactersettings--karakter-beállítások)). Így az [élő előnézet](#élő-előnézet) és a futó karakter is azonnal az új méretet mutatja.
+**Azonnali érvényesülés (kivétel a mentési alapelv alól):** érvényes érték beírásakor a View rögtön meghívja az [`IConfigurationEditor.SetCharacterSize`](../../src/ConfigurationEngine/IConfigurationEditor.cs) műveletet. Ennek hatására minden animáció átméreteződik, és egyszer tüzel a `ConfigurationChanged` esemény ([schema.md](./schema.md#4-charactersettings--karakter-beállítások)). Így az [élő előnézet](#élő-előnézet) és a futó karakter is azonnal az új méretet mutatja.
 
 - Az adatbázisba a méret a többi beállítással együtt, csak **Mentés**kor kerül.
 - **Elvetés**kor a View visszaállítja a legutóbb mentett méretet a szolgáltatáson is.
@@ -266,8 +266,8 @@ Betöltéskor a tároló a hibás elemeket kihagyja, és a [`ConfigurationLoadRe
 
 - **Figyelmeztető sáv** az ablak tetején: „N elem kimaradt betöltéskor” és **Részletek** gomb. Ha az adatbázis sérült volt és alapértékekkel jött létre (`DatabaseWasReset`), a sáv ezt is jelzi, a `config.db.bak` fájl említésével.
 - A **Részletek** panel elemenként mutatja a típust, a nevet (vagy kulcsot) és az okokat. Ha egy elem csak azért maradt ki, mert az általa használt forrás hibás, ez is az okok között szerepel ([`DroppedItem`](../../src/ConfigurationEngine/Validation/DroppedItem.cs)).
-- **Javítás:** az elem a **Szerkesztés** gombbal visszakerül a szerkesztett másolatba, és a hibái a [mezőnkénti hibajelzés](#mezőnkénti-hibajelzés) szerint jelennek meg. Ehhez a `DroppedItem`-nek az elem nyers adatait is tartalmaznia kell, ami jelenleg hiányzik ([Kapcsolat a modellel](#kapcsolat-a-modellel)).
-- **Törlés:** a mentés a teljes tárolt állapotot lecseréli ([`IConfigurationStore.SaveAsync`](../../src/ConfigurationEngine/Storage/IConfigurationStore.cs)), ezért a vissza nem vett kihagyott elemek **mentéskor véglegesen törlődnek**. A Részletek panel és a mentés előtti megerősítés ezt kifejezetten jelzi ([Mentés](#mentés)).
+- A `DroppedItem` az elem adatait nem tartalmazza, ezért a kihagyott elem nem nyitható meg szerkesztésre. Ha a felhasználó vissza szeretné kapni, a megfelelő fülön újra felveszi, helyes értékekkel.
+- **Törlés:** a mentés a teljes tárolt állapotot lecseréli ([`IConfigurationEditor.SaveAsync`](../../src/ConfigurationEngine/IConfigurationEditor.cs)), ezért a kihagyott elemek **mentéskor véglegesen törlődnek**. A Részletek panel és a mentés előtti megerősítés ezt kifejezetten jelzi ([Mentés](#mentés)).
 
 ---
 
@@ -277,10 +277,10 @@ A **Mentés** gomb (és a `Ctrl+S`) akkor aktív, ha a szerkesztett másolat elt
 
 #### Lépések
 
-1. **Megerősítés kihagyott elemek esetén.** Ha betöltéskor elemek maradtak ki, és a felhasználó nem vette vissza őket szerkesztésre, a View felsorolja őket, és megerősítést kér, mert mentéskor véglegesen törlődnek ([Kihagyott elemek](#kihagyott-elemek)).
+1. **Megerősítés kihagyott elemek esetén.** Ha betöltéskor elemek maradtak ki, a View felsorolja őket, és megerősítést kér, mert mentéskor véglegesen törlődnek ([Kihagyott elemek](#kihagyott-elemek)).
 2. **Zárolás.** A szerkesztés a mentés idejére tiltott, az ablak alján „Mentés…” állapot látszik. A felület nem fagy le, mert a további lépések a háttérben futnak.
 3. **Teljes ellenőrzés.** Lefut a validátor és minden forrásra a `Full` médiaellenőrzés ([Validálás](./schema.md#validálás)). Ha hibát talál, a mentés megszakad, semmi nem tárolódik, és a hibák a mezőknél jelennek meg.
-4. **Tárolás.** A View átadja a szerkesztett másolatot a modellnek, amely az [`IConfigurationStore.SaveAsync`](../../src/ConfigurationEngine/Storage/IConfigurationStore.cs) hívással lecseréli a tárolt állapotot. Az új elemek itt kapnak azonosítót.
+4. **Tárolás.** A View az [`IConfigurationEditor.SaveAsync`](../../src/ConfigurationEngine/IConfigurationEditor.cs) hívással átadja a szerkesztett másolatot, a modell pedig az [`IConfigurationStore.SaveAsync`](../../src/ConfigurationEngine/Storage/IConfigurationStore.cs) hívással lecseréli a tárolt állapotot. Az új elemek itt kapnak azonosítót.
 5. **Újratöltés a motorban** ([Component Configurator](./schema.md#alkalmazott-minták)). A tároló `Changed` eseményére a szolgáltatás újraolvassa a konfigurációt, újraépíti az animációkat, és kiváltja a `ConfigurationChanged` eseményt (a Karakternek), illetve – ha a mintavételezés változott – a `PollingSettingsChanged` eseményt (az OS motornak). A View ebben a lépésben nem vesz részt.
 6. **A View frissítése.** A View újra betölti a mentett állapotot (az új azonosítókkal), lecseréli vele a szerkesztett másolatot, újraépíti az [előnézeteket](#élő-előnézet), és „Mentve” állapotot mutat. A kihagyott elemek listája kiürül.
 
@@ -325,12 +325,9 @@ sequenceDiagram
 
 ### Kapcsolat a modellel
 
-A View a Konfigurációs motort két interfészen keresztül éri el:
+A View a Konfigurációs motort egyetlen interfészen, az [`IConfigurationEditor`](../../src/ConfigurationEngine/IConfigurationEditor.cs)-on keresztül éri el. Ez a View-nak szóló **Wrapper Facade**: mögötte van a tároló, a validátorok, a médiafájlok ellenőrzése és a képkocka-betöltő, a View ezekről nem tud.
 
-- [`IConfigurationService`](../../src/MonkeyStack.Core/Configuration/IConfigurationService.cs) (meglévő, Core): csak a [karakterméret](#1-karakter-mérete) azonnali állításához.
-- **`IConfigurationEditor`** (új, javaslat): minden más. Ez a View-nak szóló **Wrapper Facade**: mögötte van a tároló, a validátorok és a képkocka-betöltő, a View ezekről nem tud.
-
-Az `IConfigurationEditor` a `ConfigurationEngine` projektben él, nem a Core-ban, mert csak a konfigurációs ablak használja. A `ConfigurationService` valósítja meg az eddigi interfészei mellett ([Extension Interface](./schema.md#alkalmazott-minták)): a Karakter így továbbra is csak az `IConfigurationService`-t, az OS motor csak az `IPollingSettingsProvider`-t, a View pedig csak az `IConfigurationEditor`-t látja.
+Az `IConfigurationEditor` a `ConfigurationEngine` projektben él, nem a Core-ban, mert csak a konfigurációs ablak használja. A `ConfigurationService` valósítja meg az eddigi interfészei mellett ([Extension Interface](./schema.md#alkalmazott-minták)): a Karakter így továbbra is csak az [`IConfigurationService`](../../src/MonkeyStack.Core/Configuration/IConfigurationService.cs)-t, az OS motor csak az [`IPollingSettingsProvider`](../../src/MonkeyStack.Core/Events/IPollingSettingsProvider.cs)-t, a View pedig csak az `IConfigurationEditor`-t látja.
 
 ```mermaid
 classDiagram
@@ -341,13 +338,12 @@ classDiagram
         Validate(data)
         ValidateMediaAsync(source)
         SaveAsync(data)
+        SetCharacterSize(width, height)
         CreatePreviewAnimationAsync(source, fps)
         ReleasePreviewAnimations()
     }
     class IConfigurationService {
         <<interface>>
-        CharacterWidth
-        CharacterHeight
     }
     class IPollingSettingsProvider {
         <<interface>>
@@ -367,7 +363,6 @@ classDiagram
     }
 
     MainWindow --> IConfigurationEditor
-    MainWindow --> IConfigurationService : csak méret
     ConfigurationService ..|> IConfigurationEditor
     ConfigurationService ..|> IConfigurationService
     ConfigurationService ..|> IPollingSettingsProvider
@@ -377,40 +372,7 @@ classDiagram
     ConfigurationService --> IFrameLoader
 ```
 
-#### Az `IConfigurationEditor` javasolt műveletei
-
-```csharp
-namespace ConfigurationEngine;
-
-/// A konfigurációs ablak (View) számára készült homlokzat (Wrapper Facade).
-public interface IConfigurationEditor
-{
-    /// A tárolt konfiguráció másolata, a betöltéskor kihagyott elemekkel és a visszaállítás jelzésével.
-    Task<ConfigurationLoadResult> LoadAsync(CancellationToken cancellationToken = default);
-
-    /// Gyors, mellékhatás nélküli mező- és kereszthivatkozás-ellenőrzés (minden módosítás után).
-    ValidationResult Validate(ConfigurationData data);
-
-    /// Egy forrás teljes (Full) médiaellenőrzése, a háttérben (tallózás és csere után).
-    Task<IReadOnlyList<ValidationError>> ValidateMediaAsync(
-        AnimationSource source, CancellationToken cancellationToken = default);
-
-    /// Teljes ellenőrzés, majd mentés és újratöltés.
-    /// Hibás adatnál ConfigurationValidationException, és semmi nem módosul.
-    Task SaveAsync(ConfigurationData data, CancellationToken cancellationToken = default);
-
-    /// Előnézeti animáció a szerkesztett forrásból, az aktuális karakterméretre skálázva.
-    /// Nem kerül a Karakterhez, és a szolgáltatás nem lépteti; méretváltáskor átméreteződik.
-    /// Nem betölthető forrásnál MediaLoadException.
-    Task<IAnimation> CreatePreviewAnimationAsync(
-        AnimationSource source, double framesPerSecond, CancellationToken cancellationToken = default);
-
-    /// Eldobja a kiadott előnézeti animációkat (Elvetés, Mentés után és az ablak bezárásakor).
-    void ReleasePreviewAnimations();
-}
-```
-
-Melyik fejezet melyik műveletet használja:
+A műveletek pontos szerződése az [`IConfigurationEditor`](../../src/ConfigurationEngine/IConfigurationEditor.cs) dokumentációs kommentjeiben található. Melyik fejezet melyik műveletet használja:
 
 | Művelet | Fejezet |
 |---|---|
@@ -418,24 +380,14 @@ Melyik fejezet melyik műveletet használja:
 | `Validate` | [Mezőnkénti hibajelzés](#mezőnkénti-hibajelzés) |
 | `ValidateMediaAsync` | [Tallózás](#tallózás) |
 | `SaveAsync` | [Mentés](#mentés) 3–5. lépés |
+| `SetCharacterSize` | [Karakter mérete](#1-karakter-mérete), Elvetés |
 | `CreatePreviewAnimationAsync`, `ReleasePreviewAnimations` | [Élő előnézet](#élő-előnézet) |
-| `IConfigurationService.CharacterWidth` / `CharacterHeight` | [Karakter mérete](#1-karakter-mérete) |
 
 A műveletek szálbiztosak, és a UI szálról hívhatók. Az aszinkron műveletek a lassú munkát (fájlrendszer, dekódolás, adatbázis) a háttérben végzik, így a felület nem fagy le.
 
 #### Az ablak létrehozása
 
-A [`MainWindow`](../../src/ConfigurationEngine/MainWindow.xaml.cs) konstruktora a meglévő mintát követi ([Külön-külön indíthatóság](../mvc_architecture.md#alapelvek-közös-modell-és-független-view-k)): integrált futásnál a host adja át a közös `ConfigurationService` példányt (mindkét interfészként), önálló (F5) futásnál a `MainWindow` maga hoz létre egyet.
-
-#### Egyeztetendő a modell gazdájával
-
-A következők a View-n kívüli részeket érintik, ezért **megvalósítás előtt egyeztetni kell** a `ConfigurationService` és a tároló gazdájával:
-
-1. Az `IConfigurationEditor` interfész felvétele és megvalósítása a `ConfigurationService`-ben.
-2. Az előnézeti animációk: a képkockák forrásonkénti megosztása a karakter animációival, és az átméretezésük a karakterméret változásakor.
-3. A [`DroppedItem`](../../src/ConfigurationEngine/Validation/DroppedItem.cs) bővítése az elem nyers adataival, hogy a kihagyott elem [javítható](#kihagyott-elemek) legyen. Ami nem olvasható be (pl. ismeretlen enum szöveg), az csak törölhető.
-4. A `SaveAsync` a teljes tárolt állapotot lecseréli, így a vissza nem vett kihagyott elemek törlődnek. A View ezt jelzi, de a viselkedést közösen kell rögzíteni.
-5. Opcionális: egy `SetCharacterSize(width, height)` művelet, hogy a méret állítása egyetlen `ConfigurationChanged` eseményt váltson ki.
+A [`MainWindow`](../../src/ConfigurationEngine/MainWindow.xaml.cs) konstruktora a meglévő mintát követi ([Külön-külön indíthatóság](../mvc_architecture.md#alapelvek-közös-modell-és-független-view-k)): integrált futásnál a host adja át a közös `ConfigurationService` példányt `IConfigurationEditor`-ként, önálló (F5) futásnál a `MainWindow` maga hoz létre egyet.
 
 ---
 
@@ -462,4 +414,5 @@ A [Konfigurációs motor továbbfejlesztési lehetőségei](./schema.md#továbbf
 - **Szabálytesztelő:** a metrikák értékeinek kézi megadásával (pl. CPU = 85 %, 22:00) megmutatni, mely szabályok lennének aktívak, és a karakter előnézetén az overlay-eket a mozgási animációval együtt, a valós rétegsorrendben kirajzolni.
 - Sprite sheet rácsának automatikus felismerése (képkockaméret javaslata a kép méretéből).
 - Visszavonás / újra (undo / redo) a szerkesztett másolaton.
+- Kihagyott elemek javítása helyben: a kihagyott elem adatai alapján a View visszavehetné szerkesztésre, és a hibás mezőket jelölné, így nem kellene újra felvenni ([Kihagyott elemek](#kihagyott-elemek)).
 - Felület a sémában tervezett bővítésekhez: karaktercsomagok importálása / exportálása, konfigurációs profilok kezelése.
