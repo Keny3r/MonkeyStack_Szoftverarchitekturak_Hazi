@@ -96,7 +96,7 @@ A sprite sheet képkockái balról jobbra, majd fentről lefelé haladva olvasó
 | `AnimationSourceId` | int (FK) | igen | létező `AnimationSource` |
 | `FramesPerSecond` | real | igen | 1–60 (alapértelmezés 10) |
 
-Minden mozgásállapothoz **pontosan egy** sor tartozik. Ha egy állapothoz nincs (érvényes) sor, a motor a beépített alapértelmezett animációt adja vissza, így a karakter sosem tűnik el.
+Minden mozgásállapothoz **legfeljebb egy** sor tartozik. Ha egy állapothoz nincs (érvényes) sor, a motor a beépített alapértelmezett animációt adja vissza, így a karakter sosem tűnik el. A beépített animáció nem animációs forrás, a motor kódból állítja elő, ezért a hiányzó sor nem hiba.
 
 A séma irányonkénti animációt nem tárol: ha a karakter balra néz, a Karakter View a karaktert és az overlay-eket is vízszintesen tükrözi ([Karakter és Fizika](../mvc_architecture.md#view-réteg-1)).
 
@@ -194,6 +194,8 @@ A [közös modell](../mvc_architecture.md#animáció) szerint a Konfigurációs 
 3. **Léptetés**: az összes animáció folyamatosan loopol; a motor `UpdateAnimations(deltaTime)` hívással lépteti őket.
 4. **Változás**: méretváltozáskor a képkockák újraskálázódnak; mentés után a motor újraépíti az animációkat. Mindkét esetben `ConfigurationChanged` tüzel, és a Karakter újra lekérdezi az animációkat.
 
+A konfigurációs ablak élő előnézete ugyanezeket a példányokat rajzolja ki a saját [`AnimationView`](../../src/MonkeyStack.Core/Animation/AnimationView.cs)-jával: egy modell, több nézet ([Animáció](../mvc_architecture.md#animáció)). Az animációkat mindig a motor lépteti, a nézetek csak rajzolnak.
+
 ---
 
 ### Validálás
@@ -227,7 +229,7 @@ A táblák "Érvényes érték" oszlopai a mezőszintű szabályok. Ezen felül:
 
 A felhasználó tetszőleges fájlt tallózhat, ezért ezek kezelése biztonsági szempontból is lényeges:
 
-- **Útvonal**: `Path.GetFullPath`-szel normalizáljuk. Hálózati (UNC, `\\szerver\...`) útvonal nem megengedett. Relatív útvonal az alkalmazás `assets` mappájához képest értelmeződik (ez a beépített alapanimációké).
+- **Útvonal**: `Path.GetFullPath`-szel normalizáljuk. Hálózati (UNC, `\\szerver\...`) útvonal nem megengedett. Relatív útvonal az alkalmazás `assets` mappájához képest értelmeződik (az alkalmazással szállított képekhez).
 - **Kiterjesztés**: `Gif` → `.gif`. `SpriteSheet` → `.png`, `.jpg`, `.jpeg`, `.bmp`. `ImageFolder` → a mappa ilyen kiterjesztésű fájljai, a többi figyelmen kívül marad.
 - **Tartalom**: nem csak a kiterjesztést nézzük, a fájlt ténylegesen dekódoljuk (WPF `BitmapDecoder`). Ha nem dekódolható, a forrás érvénytelen.
 - **Méretkorlátok**: fájl ≤ 20 MB, kép ≤ 4096 × 4096 px, legfeljebb 500 képkocka. Ez véd a memóriát elfogyasztó fájlok ellen; a karakter maga nem okozhat "memória > 90%" eseményt.
@@ -247,7 +249,7 @@ Az adatbázist kizárólag EF Core-on keresztül érjük el, ami minden lekérde
 
 - Fájl: `%LOCALAPPDATA%\MonkeyStack\config.db` (nem kell hozzá rendszergazdai jog).
 - Sémaváltozás: EF Core migrációk (`__EFMigrationsHistory` tábla). Indításkor `Database.Migrate()` fut.
-- Első indításkor egy alapkonfiguráció jön létre: a beépített mozgási animációk, valamint a [Kiértékelés](#kiértékelés) példájának szabályai a beépített overlay animációkkal.
+- Első indításkor csak a karakter beállításai és a mintavételezés alapértékei jönnek létre; animációs forrás és szabály nem. A karakter addig a [beépített alapanimációt](#2-movementanimation--mozgásállapot-animációja) mutatja, amelyet a motor kódból állít elő. Példaszabályok (pl. a [Kiértékelés](#kiértékelés) tüzei és pizsamája) csak az alkalmazással szállított képekkel kerülhetnek be.
 
 ---
 
