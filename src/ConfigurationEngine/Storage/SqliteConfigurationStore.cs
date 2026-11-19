@@ -5,6 +5,7 @@ using ConfigurationEngine.Model;
 using ConfigurationEngine.Validation;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using MonkeyStack.Core.Character;
 using MonkeyStack.Core.Events;
 
 /// <summary>
@@ -14,7 +15,7 @@ using MonkeyStack.Core.Events;
 /// </summary>
 /// <remarks>
 /// Betöltés: migráció, beolvasás, validálás, a hibás sorok kihagyása (a rájuk hivatkozókkal együtt), hiányzó
-/// vagy hibás beállítások helyett alapértékek. Sérült adatbázisfájlnál a fájl <c>.bak</c> kiterjesztéssel félrekerül,
+/// vagy hibás beállítások és mozgási animációk helyett alapértékek, illetve a szállított alapanimáció. Sérült adatbázisfájlnál a fájl <c>.bak</c> kiterjesztéssel félrekerül,
 /// és alapértékekkel új jön létre (schema.md, "Validálás"). Mentés: validálás, majd egy tranzakcióban a teljes
 /// tárolt állapot lecserélése.
 /// </remarks>
@@ -259,7 +260,8 @@ public sealed class SqliteConfigurationStore : IConfigurationStore
 
     /// <summary>
     /// A betöltött adatból kihagyja az érvénytelen elemeket. Egy érvénytelen forrás a rá hivatkozó szabályokat és
-    /// mozgási animációkat is viszi; a hibás karakter- és mintavételezési beállítások helyett alapértékek kerülnek be.
+    /// mozgási animációkat is viszi; a hibás karakter- és mintavételezési beállítások helyett alapértékek, a hiányzó
+    /// vagy hibás mozgási animációk helyett a szállított alapanimáció kerül be.
     /// </summary>
     private async Task<ConfigurationLoadResult> RemoveInvalidItemsAsync(
         ConfigurationData stored,
@@ -310,15 +312,31 @@ public sealed class SqliteConfigurationStore : IConfigurationStore
         {
             var key = ItemKeys.For(movement.MovementState);
             var reasons = ReasonsWithSource(ConfigurationItemKind.MovementAnimation, key, movement.AnimationSourceId, nameof(MovementAnimation.AnimationSourceId));
-            if (reasons.Count > 0)
-            {
-                dropped.Add(new DroppedItem(ConfigurationItemKind.MovementAnimation, key, key, reasons));
-            }
-            else
+            if (reasons.Count == 0)
             {
                 result.MovementAnimations.Add(movement);
+                continue;
+            }
+
+            if (Enum.IsDefined(movement.MovementState))
+            {
+                reasons.Add(DefaultsApplied(ConfigurationItemKind.MovementAnimation, key));
+            }
+
+            dropped.Add(new DroppedItem(ConfigurationItemKind.MovementAnimation, key, key, reasons));
+        }
+
+        // A hiányzó (vagy hibás) mozgásállapotok a szállított alapanimációt kapják, így mindig mind a négy szerepel.
+        foreach (var state in Enum.GetValues<MovementState>())
+        {
+            if (!result.MovementAnimations.Any(m => m.MovementState == state))
+            {
+                var sourceId = DefaultMovementSourceId(result.AnimationSources, state);
+                result.MovementAnimations.Add(ConfigurationDefaults.CreateMovementAnimation(state, sourceId));
             }
         }
+
+        result.MovementAnimations.Sort((a, b) => a.MovementState.CompareTo(b.MovementState));
 
         for (var i = 0; i < stored.BehaviorRules.Count; i++)
         {
@@ -380,6 +398,29 @@ public sealed class SqliteConfigurationStore : IConfigurationStore
 
     private static ValidationError DefaultsApplied(ConfigurationItemKind kind, string key) =>
         new(kind, key, null, "Helyette az alapértékek érvényesek.");
+
+    /// <summary>
+    /// A mozgásállapot szállított alapanimációjának forrása a betöltött források közül: az azonos típusú és útvonalú,
+    /// ennek híján az azonos nevű (két forrásnak nem lehet azonos neve). Ha egyik sincs, a forrás új elemként, ideiglenes
+    /// negatív azonosítóval visszakerül, és a következő mentéskor tárolódik.
+    /// </summary>
+    private static int DefaultMovementSourceId(List<AnimationSource> sources, MovementState state)
+    {
+        var preset = ConfigurationDefaults.CreateMovementSource(state);
+        var source = sources.FirstOrDefault(s => s.SourceType == preset.SourceType && SamePath(s.Path, preset.Path))
+            ?? sources.FirstOrDefault(s => string.Equals(s.Name.Trim(), preset.Name, StringComparison.InvariantCultureIgnoreCase));
+        if (source is not null)
+        {
+            return source.Id;
+        }
+
+        preset.Id = Math.Min(0, sources.Select(s => s.Id).DefaultIfEmpty(0).Min()) - 1;
+        sources.Add(preset);
+        return preset.Id;
+    }
+
+    private static bool SamePath(string a, string b) =>
+        string.Equals(a.Trim().Replace('\\', '/'), b, StringComparison.OrdinalIgnoreCase);
 
     private static bool IsCorruptDatabase(Exception exception)
     {

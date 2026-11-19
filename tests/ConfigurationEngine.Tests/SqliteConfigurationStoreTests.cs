@@ -45,6 +45,56 @@ public sealed class SqliteConfigurationStoreTests : IDisposable
         Assert.Equal(100, first.Data.Character.CharacterWidth);
         Assert.Equal(Enum.GetValues<Metric>(), first.Data.MetricPollings.Select(p => p.Metric));
         Assert.Equal(1000, first.Data.MetricPollings.Single(p => p.Metric == Metric.Cpu).IntervalMs);
+
+        // A szállított alapanimációk: mozgásállapotonként egy képsorozat-mappa forrás és egy mozgási animáció.
+        Assert.Equal(Enum.GetValues<MovementState>(), first.Data.MovementAnimations.Select(m => m.MovementState));
+        Assert.All(first.Data.MovementAnimations, m =>
+        {
+            var source = first.Data.AnimationSources.Single(s => s.Id == m.AnimationSourceId);
+            Assert.Equal(AnimationSourceType.ImageFolder, source.SourceType);
+            Assert.Equal($"movement/{m.MovementState.ToString().ToLowerInvariant()}", source.Path);
+            Assert.Equal(10, m.FramesPerSecond);
+        });
+        Assert.Equal(4, first.Data.AnimationSources.Count);
+        Assert.Empty(first.Data.BehaviorRules);
+    }
+
+    [Fact]
+    public async Task Load_RestoresMissingMovementStateToShippedSource()
+    {
+        var store = new SqliteConfigurationStore(_databasePath);
+        var defaults = (await store.LoadAsync()).Data;
+        var walkingSourceId = defaults.MovementAnimations.Single(m => m.MovementState == MovementState.Walking).AnimationSourceId;
+        Execute("DELETE FROM MovementAnimation WHERE MovementState = 'Walking'");
+
+        var result = await store.LoadAsync();
+
+        Assert.Empty(result.DroppedItems);
+        Assert.Equal(walkingSourceId, result.Data.MovementAnimations.Single(m => m.MovementState == MovementState.Walking).AnimationSourceId);
+        Assert.Equal(4, result.Data.AnimationSources.Count);
+    }
+
+    [Fact]
+    public async Task Load_RestoresInvalidMovementStateAndItsMissingSource()
+    {
+        var store = new SqliteConfigurationStore(_databasePath);
+        await store.SaveAsync(TestData.ValidConfiguration());
+        Execute("UPDATE MovementAnimation SET FramesPerSecond = 0 WHERE MovementState = 'Falling'");
+
+        var result = await store.LoadAsync();
+
+        // A mentés lecserélte a szállított forrásokat, ezért a Falling forrása új elemként, ideiglenes azonosítóval kerül vissza.
+        var dropped = Assert.Single(result.DroppedItems);
+        Assert.Equal(nameof(MovementState.Falling), dropped.ItemKey);
+        Assert.Contains(dropped.Reasons, r => r.PropertyName is null);
+        var falling = result.Data.MovementAnimations.Single(m => m.MovementState == MovementState.Falling);
+        var source = result.Data.AnimationSources.Single(s => s.Id == falling.AnimationSourceId);
+        Assert.True(source.Id < 0);
+        Assert.Equal("movement/falling", source.Path);
+        Assert.True(new ConfigurationValidator().Validate(result.Data).IsValid);
+
+        await store.SaveAsync(result.Data);
+        Assert.Empty((await store.LoadAsync()).DroppedItems);
     }
 
     [Fact]
@@ -68,7 +118,7 @@ public sealed class SqliteConfigurationStoreTests : IDisposable
         var newRule = TestData.Rule(0, "Alszik", Metric.Inactivity, ComparisonOperator.Gte, 10, sourceId: -1);
         data.AnimationSources.Add(newSource);
         data.BehaviorRules.Add(newRule);
-        data.MovementAnimations.Add(new MovementAnimation { MovementState = MovementState.Idle, AnimationSourceId = -1, FramesPerSecond = 6 });
+        data.MovementAnimations.Single(m => m.MovementState == MovementState.Idle).AnimationSourceId = -1;
 
         await store.SaveAsync(data);
 
