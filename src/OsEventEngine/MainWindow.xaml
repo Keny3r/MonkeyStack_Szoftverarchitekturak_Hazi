@@ -5,8 +5,11 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:OsEventEngine"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
-
-    </Grid>
+        Title="OS esemény Mock View" Height="420" Width="640">
+    <DockPanel Margin="12">
+        <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" FontWeight="SemiBold"
+                   Text="Aktuális értékek (csak olvasható; a csúszkák az M6-ban jönnek)" />
+        <TextBlock x:Name="LastEventText" DockPanel.Dock="Bottom" Margin="0,8,0,0" FontFamily="Consolas" />
+        <TextBlock x:Name="StatusText" FontFamily="Consolas" FontSize="13" />
+    </DockPanel>
 </Window>

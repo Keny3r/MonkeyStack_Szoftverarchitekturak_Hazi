@@ -10,8 +10,9 @@ Windows rendszermetrikákat mér (CPU, memória, háttértár, akku, ablakszám,
 ## Állapot (frissítsd, ha változik)
 - ✅ Publikus szerződés és belső interfészek (szerződés szintű kód, mint a Konfigurációs motornál, #1). A `Metric` a Core-ból jön.
 - ✅ Döntések a #3 review-ján: host bekötés, `Simulation`-alapú Mock út, Observer/Reactor szóhasználat, platform-szolgáltató nálunk (A opció).
-- ⏳ Implementáció: M1 források → M2 monitorok → M3 lánc → M4 `Start`/`Reconfigure` → M5 szimuláció → M6 View → M7 tesztek → M8 integráció → M11 platform-szolgáltató ([plan.md 9.](./plan.md#9-megvalósítási-lépések-mérföldkövek)).
-- `NotImplementedException`-t dobó tagot **ne hívj** a hostból, amíg a hozzá tartozó lépés nincs kész.
+- ✅ M1–M4: valódi Win32 mérés, monitorok, lánc, kiküldés; `Start`, `Reconfigure`, `UsePollingSettings`, `GetSnapshot`, `GetMonitorStatus`, `Dispose` működik. Saját terhelés ~0,15% (16 mag, 10 s mérés).
+- ⏳ Hátravan: M5 szimuláció → M6 View → M7 tesztek → M8 integráció → M11 platform-szolgáltató ([plan.md 9.](./plan.md#9-megvalósítási-lépések-mérföldkövek)).
+- Még `NotImplementedException`: csak a `Simulation` (M5). A `MainWindow` most csak olvasható állapotkijelzés (csúszkák: M6).
 
 ## Fájltérkép
 | Fájl | Szerep |
@@ -22,17 +23,20 @@ Windows rendszermetrikákat mér (CPU, memória, háttértár, akku, ablakszám,
 | `src/MonkeyStack.Core/Events/Metric.cs`, `IPollingSettingsProvider.cs` | **Közös, ne módosítsd.** Metrika enum; a mintavételi beállítások forrása (a Konfigurációs motor valósítja meg). |
 | `src/OsEventEngine/Monitoring/MetricCatalog.cs` | Tartományok, alap intervallumok, UI-leírók (egyeznek a `ConfigurationLimits`-szel; később a Core-ba). |
 | `src/OsEventEngine/Monitoring/MetricSample.cs`, `MonitorInterfaces.cs` | Belső minta + `IMetricMonitor`, `IConfigurableComponent`, `ISimulatable`, `MonitorStatus`. |
-| `src/OsEventEngine/Sources/IMetricSource.cs` | Forrás interfész (élő Win32 vagy szimulált). |
-| `src/OsEventEngine/Pipeline/IEventInterceptor.cs` | Láncelem (Smoothing → ChangeFilter → Snapshot → Logging). |
+| `src/OsEventEngine/Sources/*` | `IMetricSource` + 7 élő forrás (`CpuSource`, `SystemSources.cs`). A natív lekérdezés konstruktorban cserélhető (tesztek). |
+| `src/OsEventEngine/Native/*` | `NativeMethods` (DllImport), `Win32System`, `WindowEnumerator` (Wrapper Facade). Win32 hívás csak itt. |
+| `src/OsEventEngine/Monitoring/MetricMonitor.cs`, `MonitorRepository.cs` | Mintavételező ciklus (`Init`/`Suspend`/`Resume`/`Fini`, `TriggerNow`, hiba → backoff). |
+| `src/OsEventEngine/State/MetricSnapshotStore.cs` | Pillanatkép + `EventDataMapper` (`MetricSample` → Core `*EventData` / `Notify…`). |
+| `src/OsEventEngine/Pipeline/*` | `IEventInterceptor`, `Interceptors.cs` (Smoothing → ChangeFilter → Snapshot → Logging), `EventDispatcher` (csatorna + 1 fogyasztó). |
 | `src/OsEventEngine/Simulation/*` | `ISimulationControl`, `SourceMode`, `MetricDescriptor`. |
 | `src/OsEventEngine/MainWindow.xaml(.cs)` | OS Mock View (konstruktor: `MainWindow(OsEventMonitorService?)`, ne változtasd). |
 
 ## Adatfolyam (1 sor)
-`MetricMonitor` (PeriodicTimer, `IMetricSource`) → `Channel<MetricSample>` → interceptor lánc (1 fogyasztó) → `SynchronizationContext.Post` → `OsEventNotifier.Notify…Changed` → `CharacterEventCoordinator`.
+`MetricMonitor` (`Task.Delay(TimeProvider)` ciklus, `IMetricSource`) → `Channel<MetricSample>` → interceptor lánc (1 fogyasztó) → `SynchronizationContext.Post` → `OsEventNotifier.Notify…Changed` → `CharacterEventCoordinator`.
 
 ## Szerződés – ezt garantáljuk
 1. Események **sorosítva** jönnek; ha a `Start()`-kor volt `SynchronizationContext`, azon. A fogyasztó ne építsen a UI szálra.
-2. `Start()` után 1 kezdeti esemény minden elérhető metrikára, utána csak ha `|Δ| ≥ Deadband`.
+2. `Start()` után 1 kezdeti esemény minden elérhető metrikára (CPU: az első periódus után, mert két minta kell), utána csak ha `|Δ| ≥ Deadband`.
 3. Nem elérhető vagy letiltott metrika (pl. nincs akku) → nincs esemény.
 4. Minden eseményhez új `*EventData` példány jön.
 5. Time = `Hour`/`Minute` (belül perc éjfél óta, 0–1439). Inaktivitás percben.
