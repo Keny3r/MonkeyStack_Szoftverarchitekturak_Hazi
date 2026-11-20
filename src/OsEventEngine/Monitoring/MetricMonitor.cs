@@ -3,6 +3,7 @@ namespace OsEventEngine.Monitoring;
 using System.Diagnostics;
 using System.Threading.Channels;
 using MonkeyStack.Core.Events;
+using OsEventEngine.Simulation;
 using OsEventEngine.Sources;
 
 /// <summary>
@@ -151,7 +152,9 @@ internal sealed class MetricMonitor : IMetricMonitor, IConfigurableComponent
     {
         try
         {
-            int? value = _source.Sample();
+            var (value, origin) = _source is SwitchableSource switchable
+                ? switchable.SampleWithOrigin()
+                : (_source.Sample(), SampleOrigin.Live);
             lock (_sync)
             {
                 _consecutiveFailures = 0;
@@ -163,7 +166,7 @@ internal sealed class MetricMonitor : IMetricMonitor, IConfigurableComponent
 
             if (value is int v)
             {
-                _output.TryWrite(new MetricSample(Metric, MetricCatalog.Clamp(Metric, v), SampleOrigin.Live, _timeProvider.GetUtcNow()));
+                _output.TryWrite(new MetricSample(Metric, MetricCatalog.Clamp(Metric, v), origin, _timeProvider.GetUtcNow()));
             }
 
             return interval;

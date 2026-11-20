@@ -16,14 +16,15 @@ using OsEventEngine.State;
 /// </summary>
 /// <remarks>
 /// Használat a hostban: létrehozás → feliratkozás a <see cref="Notifier"/>-re → <see cref="Start"/> → <see cref="Dispose"/>.
-/// A <see cref="Simulation"/> még nincs megvalósítva (plan.md, M5).
+/// Teszteléshez valódi terhelés nélkül: <see cref="Simulation"/> (metrikánként élő vagy szimulált forrás).
 /// </remarks>
 public class OsEventMonitorService : IDisposable
 {
     private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(1);
 
     private readonly TimeProvider _timeProvider;
-    private readonly Func<TimeProvider, IEnumerable<IMetricSource>> _sourceFactory;
+    private readonly IReadOnlyDictionary<Metric, SwitchableSource> _sources;
+    private readonly SimulationController _simulation;
     private readonly MetricSnapshotStore _snapshot = new();
     private readonly object _lifecycle = new();
 
@@ -56,7 +57,11 @@ public class OsEventMonitorService : IDisposable
         Notifier = notifier ?? new OsEventNotifier();
         _options = options ?? OsEventEngineOptions.Default;
         _timeProvider = timeProvider ?? TimeProvider.System;
-        _sourceFactory = sourceFactory ?? CreateLiveSources;
+
+        // A források itt jönnek létre (natív hívás még nincs), így a szimuláció a Start előtt is beállítható.
+        _sources = (sourceFactory ?? CreateLiveSources)(_timeProvider)
+            .ToDictionary(s => s.Metric, s => new SwitchableSource(s, MetricCatalog.Descriptor(s.Metric)));
+        _simulation = new SimulationController(_sources, FindMonitor);
     }
 
     /// <summary>
@@ -75,18 +80,36 @@ public class OsEventMonitorService : IDisposable
     }
 
     /// <summary>
-    /// A szimuláció vezérlése (OS Mock View csúszkái, más komponensek tesztjei).
+    /// A szimuláció vezérlése (OS Mock View csúszkái, más komponensek tesztjei). A <see cref="Start"/> előtt is használható;
+    /// a beállított értékek az indításkor lépnek életbe. A szimulált érték ugyanazon a láncon megy át, mint az élő.
     /// </summary>
-    /// <exception cref="NotImplementedException">M5 előtt.</exception>
-    public ISimulationControl Simulation => throw new NotImplementedException("M5: SimulationController (plan.md 5.1)");
+    public ISimulationControl Simulation => _simulation;
 
     /// <summary>
-    /// Kényelmi kapcsoló a metrikánkénti szimuláció fölött.
-    /// Tervezett viselkedés (M5): <c>true</c> → minden metrika szimulált módba a jelenlegi értékkel;
-    /// <c>false</c> → <see cref="ISimulationControl.ResetAll"/>. Olvasva: igaz, ha bármelyik metrika szimulált.
-    /// Addig egyszerű jelző, ahogy az eredeti vázban.
+    /// Kényelmi kapcsoló a metrikánkénti szimuláció fölött: <c>true</c> → minden metrika szimulált módba a jelenlegi
+    /// értékkel; <c>false</c> → <see cref="ISimulationControl.ResetAll"/>. Olvasva: igaz, ha bármelyik metrika szimulált.
     /// </summary>
-    public bool IsMockModeEnabled { get; set; }
+    public bool IsMockModeEnabled
+    {
+        get => _simulation.AnySimulated;
+        set
+        {
+            if (value)
+            {
+                _simulation.SimulateAll();
+            }
+            else
+            {
+                _simulation.ResetAll();
+            }
+        }
+    }
+
+    /// <summary>Az OS Mock View-nak: a szimulációs vezérlő belső adataival (utolsó élő érték).</summary>
+    internal SimulationController SimulationController => _simulation;
+
+    /// <summary>Az OS Mock View-nak: a metrika legutóbb kiküldött mintája (érték és forrás).</summary>
+    internal bool TryGetSentSample(Metric metric, out MetricSample sample) => _snapshot.TryGet(metric, out sample);
 
     /// <summary>
     /// Elindítja a monitorokat és a láncot. Utána minden elérhető metrikára egy kezdeti esemény megy ki
@@ -118,7 +141,7 @@ public class OsEventMonitorService : IDisposable
             _dispatcher = new EventDispatcher(chain, Notifier, context ?? SynchronizationContext.Current);
             _dispatcher.Start(_cts.Token);
 
-            _monitors = new MonitorRepository(_sourceFactory(_timeProvider), _dispatcher.Writer, _timeProvider);
+            _monitors = new MonitorRepository(_sources.Values, _dispatcher.Writer, _timeProvider);
             _monitors.Apply(Options);
         }
     }
@@ -183,15 +206,10 @@ public class OsEventMonitorService : IDisposable
     }
 
     /// <summary>
-    /// Rövidítés a csúszkákhoz: CPU szimulált értéke.
-    /// Tervezett viselkedés (M5): <c>Simulation.SetSimulatedValue(Metric.Cpu, value)</c>, az esemény a láncon át,
-    /// &lt; 100 ms-on belül megy ki. Addig az eredeti váz szerint közvetlenül értesít.
+    /// Rövidítés: <c>Simulation.SetSimulatedValue(Metric.Cpu, value)</c>. Az esemény a láncon át megy ki
+    /// (nem szinkron a hívással), ha a szolgáltatás fut.
     /// </summary>
-    public void ReportMockCpuUsage(int usagePercent)
-    {
-        IsMockModeEnabled = true;
-        Notifier.NotifyCpuChanged(new CpuEventData { UsagePercent = MetricCatalog.Clamp(Metric.Cpu, usagePercent) });
-    }
+    public void ReportMockCpuUsage(int usagePercent) => _simulation.SetSimulatedValue(Metric.Cpu, usagePercent);
 
     /// <summary>
     /// Az eredeti váz példája az élő mérésre. Elavult: az élő mérést a motor maga végzi.
@@ -256,6 +274,14 @@ public class OsEventMonitorService : IDisposable
         new TimeSource(timeProvider),
         new InactivitySource(),
     ];
+
+    private IMetricMonitor? FindMonitor(Metric metric)
+    {
+        lock (_lifecycle)
+        {
+            return _monitors is not null && _monitors.TryGet(metric, out var monitor) ? monitor : null;
+        }
+    }
 
     private void OnPollingSettingsChanged(object? sender, EventArgs e)
     {

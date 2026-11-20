@@ -385,7 +385,7 @@ OsEventEngine/
 │  └─ Win32EventReactor.cs         (2. fázis) Reactor
 ├─ Simulation/
 │  ├─ SourceMode.cs, MetricDescriptor.cs, ISimulationControl.cs
-│  ├─ SimulatedSource.cs, SwitchableSource.cs                          (Strategy + Proxy)
+│  ├─ SwitchableSource.cs          élő/szimulált forrás egyben (Strategy + Proxy, ISimulatable)
 │  └─ SimulationController.cs
 ├─ Pipeline/
 │  ├─ IEventInterceptor.cs, InterceptorChain.cs                        (Interceptor)
@@ -397,7 +397,7 @@ OsEventEngine/
 ├─ Platforms/
 │  └─ Win32PlatformProvider.cs     IPlatformProvider megvalósítása (M11, platform_provider_proposal.md)
 └─ ViewModels/
-   └─ OsMockViewModel.cs, MetricRowViewModel.cs, ObservableObject.cs, RelayCommand.cs
+   └─ OsMockViewModel.cs, MetricRowViewModel.cs, ObservableObject.cs (+ RelayCommand)
 ```
 
 Láthatóság: **publikus** csak az `OsEventMonitorService`, `OsEventEngineOptions`, `MonitorOptions`, `MetricCatalog`, `MonitorStatus`, `SourceMode`, `MetricDescriptor`, `ISimulationControl` és a `MainWindow`. Minden más `internal`. Tesztekhez: `[assembly: InternalsVisibleTo("OsEventEngine.Tests")]`.
@@ -546,9 +546,9 @@ Minden lépés külön commit / PR. A zárójelben a lefedett minták. Az M1–M
 - [x] **M2 – Monitorok:** `MetricMonitor` (periodikus ciklus + `TriggerNow`; `Task.Delay(TimeProvider)` + ébresztő csatorna, mert a `PeriodicTimer` nem ébreszthető idő előtt), `MonitorRepository`, `OsEventEngineOptions` (*Component Configurator*, *Extension Interface*).
 - [x] **M3 – Lánc és kiküldés:** `Channel`, `InterceptorChain` + 4 interceptor, `EventDispatcher` → `OsEventNotifier.Notify…Changed`, `MetricSnapshotStore` (*Half-Sync/Half-Async*, *Interceptor*, *Monitor Object*, *Thread-Safe Interface*, *Scoped Locking*).
 - [x] **M4 – `OsEventMonitorService` kiépítése:** `Start` / `Reconfigure` / `Dispose` / `GetSnapshot` / `GetMonitorStatus` / `UsePollingSettings` (az M8 szolgáltató-oldala is), a meglévő tagok megtartásával (5.1 táblázat), standalone `App.OnStartup` naplózó feliratkozóval (*Facade*).
-- [ ] **M5 – Szimuláció:** `SimulatedSource`, `SwitchableSource`, `SimulationController`, `ISimulationControl`, `IsMockModeEnabled` átkötése (*Strategy*, *Proxy*, *Active Object* jelleg).
-- [ ] **M6 – OS Mock View:** `MainWindow` + `OsMockViewModel`, presetek (*MVC/MVVM*).
-- [ ] **M7 – Tesztek:** `OsEventEngine.Tests` projekt, a 8. fejezet szerint.
+- [x] **M5 – Szimuláció:** `SwitchableSource` (a külön `SimulatedSource` beleolvadt), `SimulationController`, `ISimulationControl`, `IsMockModeEnabled` átkötése (*Strategy*, *Proxy*, *Active Object* jelleg).
+- [x] **M6 – OS Mock View:** `MainWindow` + `OsMockViewModel`, presetek (*MVC/MVVM*).
+- [x] **M7 – Tesztek:** `tests/OsEventEngine.Tests` (xUnit, `FakeTimeProvider`, hamis források; 35 teszt, natív hívás nélkül). A CI még nem futtatja őket (a `ci.yml`-ben nincs `dotnet test` lépés).
 - [ ] **M8 – Integráció (elfogadva a #3-ban):** `Start()` / `Dispose()` a `CharacterEngine` `App`-ban (Gergő és Frink Dávid), `UsePollingSettings` bekötése a Core-beli `IPollingSettingsProvider`-rel (*Component Configurator*).
 - [ ] **M9 – Reactor (opcionális, 2. fázis):** `Win32EventReactor` (WinEvent hook, `WM_POWERBROADCAST`, `WM_TIMECHANGE`) → `TriggerNow` (*Reactor*, *DCLO/Lazy*).
 - [ ] **M10 – Dokumentáció:** a ténylegesen megvalósult mintákat új fájlban dokumentálni (`docs/os_event_engine/patterns_applied.md`), osztály- és szekvenciadiagramokkal, a [Szótárra](../../README.md#szótár) hivatkozva.

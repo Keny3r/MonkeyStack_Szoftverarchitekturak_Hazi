@@ -11,8 +11,9 @@ Windows rendszermetrikákat mér (CPU, memória, háttértár, akku, ablakszám,
 - ✅ Publikus szerződés és belső interfészek (szerződés szintű kód, mint a Konfigurációs motornál, #1). A `Metric` a Core-ból jön.
 - ✅ Döntések a #3 review-ján: host bekötés, `Simulation`-alapú Mock út, Observer/Reactor szóhasználat, platform-szolgáltató nálunk (A opció).
 - ✅ M1–M4: valódi Win32 mérés, monitorok, lánc, kiküldés; `Start`, `Reconfigure`, `UsePollingSettings`, `GetSnapshot`, `GetMonitorStatus`, `Dispose` működik. Saját terhelés ~0,15% (16 mag, 10 s mérés).
-- ⏳ Hátravan: M5 szimuláció → M6 View → M7 tesztek → M8 integráció → M11 platform-szolgáltató ([plan.md 9.](./plan.md#9-megvalósítási-lépések-mérföldkövek)).
-- Még `NotImplementedException`: csak a `Simulation` (M5). A `MainWindow` most csak olvasható állapotkijelzés (csúszkák: M6).
+- ✅ M5–M7: szimuláció (`Simulation`, `IsMockModeEnabled`), csúszkás OS Mock View (MVVM, presetek), 35 unit teszt (`tests/OsEventEngine.Tests`).
+- ⏳ Hátravan: M8 host bekötés (Karakter motor: `Start()`/`Dispose()`, `UsePollingSettings`) → M11 platform-szolgáltató → M10 minta-dokumentáció; opcionális M9 Reactor ([plan.md 9.](./plan.md#9-megvalósítási-lépések-mérföldkövek)).
+- Nincs több `NotImplementedException`. Tesztek: `dotnet test tests/OsEventEngine.Tests` (a CI még nem futtatja).
 
 ## Fájltérkép
 | Fájl | Szerep |
@@ -28,8 +29,10 @@ Windows rendszermetrikákat mér (CPU, memória, háttértár, akku, ablakszám,
 | `src/OsEventEngine/Monitoring/MetricMonitor.cs`, `MonitorRepository.cs` | Mintavételező ciklus (`Init`/`Suspend`/`Resume`/`Fini`, `TriggerNow`, hiba → backoff). |
 | `src/OsEventEngine/State/MetricSnapshotStore.cs` | Pillanatkép + `EventDataMapper` (`MetricSample` → Core `*EventData` / `Notify…`). |
 | `src/OsEventEngine/Pipeline/*` | `IEventInterceptor`, `Interceptors.cs` (Smoothing → ChangeFilter → Snapshot → Logging), `EventDispatcher` (csatorna + 1 fogyasztó). |
-| `src/OsEventEngine/Simulation/*` | `ISimulationControl`, `SourceMode`, `MetricDescriptor`. |
-| `src/OsEventEngine/MainWindow.xaml(.cs)` | OS Mock View (konstruktor: `MainWindow(OsEventMonitorService?)`, ne változtasd). |
+| `src/OsEventEngine/Simulation/*` | `ISimulationControl`, `SourceMode`, `MetricDescriptor`, `SwitchableSource` (élő/szimulált, `ISimulatable`), `SimulationController`. |
+| `src/OsEventEngine/ViewModels/*` | `OsMockViewModel`, `MetricRowViewModel` (MVVM; a csúszkák a `Simulation`-t hívják). |
+| `tests/OsEventEngine.Tests/*` | Unit tesztek; `FakeSource` + `Eventually` segédek a `TestHelpers.cs`-ben. |
+| `src/OsEventEngine/MainWindow.xaml(.cs)` | OS Mock View: csúszkák, presetek, élő/kiküldött érték (konstruktor: `MainWindow(OsEventMonitorService?)`, ne változtasd). |
 
 ## Adatfolyam (1 sor)
 `MetricMonitor` (`Task.Delay(TimeProvider)` ciklus, `IMetricSource`) → `Channel<MetricSample>` → interceptor lánc (1 fogyasztó) → `SynchronizationContext.Post` → `OsEventNotifier.Notify…Changed` → `CharacterEventCoordinator`.
@@ -51,7 +54,7 @@ Windows rendszermetrikákat mér (CPU, memória, háttértár, akku, ablakszám,
 - Meglévő dokumentáció szövegét ne írd át engedély nélkül. Új tartalom új fájlba, linkkel.
 
 ## Minta → hely
-Wrapper Facade: `Sources/*`, `Native/*` · Component Configurator: `IConfigurableComponent`, `Reconfigure` · Interceptor: `Pipeline/*` · Extension Interface: `IMetricMonitor` + `IConfigurableComponent` + `ISimulatable` · Half-Sync/Half-Async: monitorok → Channel → fogyasztó · Monitor Object / Thread-Safe Interface / Scoped Locking: `MetricSnapshotStore` · Reactor (2. fázis): `Win32EventReactor` · DCLO: `Lazy<T>` · Strategy + Proxy: `SwitchableSource`. Observer = a C# események (az MVC terv ezt Reactornak hívja).
+Wrapper Facade: `Sources/*`, `Native/*` · Component Configurator: `IConfigurableComponent`, `Reconfigure` · Interceptor: `Pipeline/*` · Extension Interface: `IMetricMonitor` + `IConfigurableComponent` (monitor), `ISimulatable` (`SwitchableSource`) · Active Object jelleg: `SimulationController` → `TriggerNow` · MVVM: `ViewModels/*` · Half-Sync/Half-Async: monitorok → Channel → fogyasztó · Monitor Object / Thread-Safe Interface / Scoped Locking: `MetricSnapshotStore` · Reactor (2. fázis): `Win32EventReactor` · DCLO: `Lazy<T>` · Strategy + Proxy: `SwitchableSource`. Observer = a C# események (az MVC terv ezt Reactornak hívja).
 
 ## Mélyebb részletek (plan.md)
 | Ha ezt kell tudnod… | Olvasd |
