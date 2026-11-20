@@ -16,3 +16,9 @@ Az OS szintű eseményeket rögzítő komponensek.
 ## Részletes MVC terv
 
 - [OS Események és Mock View MVC terv](../mvc_architecture.md#os-események)
+
+## Megvalósítási terv
+
+- [Terv (minták, API, mérföldkövek)](./plan.md)
+- [🤖 Agent brief (rövid összefoglaló AI agenteknek)](./AGENT_BRIEF.md)
+- [Javaslat: járható felületek, fullscreen, takarás](./platform_provider_proposal.md)
