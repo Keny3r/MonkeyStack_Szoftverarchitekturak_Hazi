@@ -5,8 +5,78 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:OsEventEngine"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
+        Title="OS esemény Mock View" Height="440" Width="900" MinWidth="760">
+    <DockPanel Margin="12" Grid.IsSharedSizeScope="True">
+        <TextBlock DockPanel.Dock="Top" Margin="0,0,0,10" FontWeight="SemiBold" Text="{Binding StatusText}" />
 
-    </Grid>
+        <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock VerticalAlignment="Center" Margin="0,0,8,0" Text="Preset:" />
+                <Button Margin="0,0,6,0" Padding="10,3" Content="Túlmelegedés" Command="{Binding OverheatCommand}"
+                        ToolTip="CPU 95%, memória 92%" />
+                <Button Margin="0,0,6,0" Padding="10,3" Content="Lemerülés" Command="{Binding LowBatteryCommand}"
+                        ToolTip="Akkumulátor 5%" />
+                <Button Margin="0,0,6,0" Padding="10,3" Content="Éjszaka" Command="{Binding NightCommand}"
+                        ToolTip="Idő 22:30" />
+                <Button Margin="0,0,18,0" Padding="10,3" Content="Unatkozás" Command="{Binding BoredCommand}"
+                        ToolTip="Inaktivitás 30 perc" />
+                <Button Padding="10,3" Content="Mind élő" Command="{Binding ResetAllCommand}"
+                        ToolTip="Minden metrika vissza a valódi mérésre" />
+            </StackPanel>
+            <TextBlock Margin="0,8,0,0" FontFamily="Consolas" Text="{Binding LastEventText}" />
+        </StackPanel>
+
+        <StackPanel>
+            <Grid Margin="0,0,0,4" TextElement.FontWeight="SemiBold">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition SharedSizeGroup="Name" />
+                    <ColumnDefinition SharedSizeGroup="Mode" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition SharedSizeGroup="Slider" />
+                    <ColumnDefinition SharedSizeGroup="Sent" />
+                    <ColumnDefinition SharedSizeGroup="Live" />
+                    <ColumnDefinition SharedSizeGroup="Monitor" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Metrika" Margin="0,0,12,0" />
+                <TextBlock Grid.Column="1" Text="Mód" Margin="0,0,12,0" />
+                <TextBlock Grid.Column="2" Text="Csúszka" />
+                <TextBlock Grid.Column="3" Text="Beállított" Margin="12,0,12,0" />
+                <TextBlock Grid.Column="4" Text="Kiküldött" Margin="0,0,12,0" />
+                <TextBlock Grid.Column="5" Text="Élő mérés" Margin="0,0,12,0" />
+                <TextBlock Grid.Column="6" Text="Monitor" />
+            </Grid>
+
+            <ItemsControl ItemsSource="{Binding Rows}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Margin="0,3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition SharedSizeGroup="Name" />
+                                <ColumnDefinition SharedSizeGroup="Mode" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition SharedSizeGroup="Slider" />
+                                <ColumnDefinition SharedSizeGroup="Sent" />
+                                <ColumnDefinition SharedSizeGroup="Live" />
+                                <ColumnDefinition SharedSizeGroup="Monitor" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0" Text="{Binding DisplayName}" />
+                            <CheckBox Grid.Column="1" VerticalAlignment="Center" Margin="0,0,12,0" Content="Szimulált"
+                                      IsChecked="{Binding IsSimulated}" />
+                            <Slider Grid.Column="2" VerticalAlignment="Center" MinWidth="160"
+                                    Minimum="{Binding Minimum}" Maximum="{Binding Maximum}"
+                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Value="{Binding SliderValue}" />
+                            <TextBlock Grid.Column="3" VerticalAlignment="Center" Margin="12,0,12,0" FontFamily="Consolas" Text="{Binding SliderText}" />
+                            <TextBlock Grid.Column="4" VerticalAlignment="Center" Margin="0,0,12,0" FontFamily="Consolas">
+                                <Run Text="{Binding SentText, Mode=OneWay}" />
+                                <Run Foreground="Gray" Text="{Binding OriginText, Mode=OneWay}" />
+                            </TextBlock>
+                            <TextBlock Grid.Column="5" VerticalAlignment="Center" Margin="0,0,12,0" FontFamily="Consolas" Text="{Binding LiveText}" />
+                            <TextBlock Grid.Column="6" VerticalAlignment="Center" Foreground="Gray" Text="{Binding MonitorInfo}" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </DockPanel>
 </Window>

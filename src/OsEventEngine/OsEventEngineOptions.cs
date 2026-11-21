@@ -27,12 +27,14 @@ public sealed record OsEventEngineOptions
     /// <summary>Minden kimenő esemény naplózása (Debug kimenet).</summary>
     public bool EnableLogging { get; init; }
 
-    /// <summary>Alapértelmezett beállítás: minden metrika engedélyezve, <see cref="MetricCatalog.DefaultInterval"/> periódussal.</summary>
-    public static OsEventEngineOptions Default { get; } = new();
+    // A sorrend számít: a statikus mezők deklarációs sorrendben inicializálódnak, és a Default már a DefaultMonitors-t használja.
 
     /// <summary>Az alapértelmezett metrikánkénti beállítások.</summary>
     public static IReadOnlyDictionary<Metric, MonitorOptions> DefaultMonitors { get; } =
         MetricCatalog.All.ToDictionary(m => m, m => new MonitorOptions(true, MetricCatalog.DefaultInterval(m)));
+
+    /// <summary>Alapértelmezett beállítás: minden metrika engedélyezve, <see cref="MetricCatalog.DefaultInterval"/> periódussal.</summary>
+    public static OsEventEngineOptions Default { get; } = new();
 
     /// <summary>A metrika érvényes beállítása: ha nincs megadva, az alapérték; az intervallum a megengedett tartományra vágva.</summary>
     public MonitorOptions For(Metric metric)
