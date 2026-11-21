@@ -190,7 +190,7 @@ Kikapcsolt metrikát nem kérdezünk le, így a rá vonatkozó szabályok sem te
 A [közös modell](../mvc_architecture.md#animáció) szerint a Konfigurációs motor hozza létre és lépteti az [`Animation`](../../src/MonkeyStack.Core/Animation/Animation.cs) objektumokat; az Animációs motor kész animációkat kap:
 
 1. **Képkockák betöltése**: minden `AnimationSource` képkockáit egyszer töltjük be (`IFrameLoader`), és `CharacterWidth × CharacterHeight` méretre skálázzuk: aránytartóan, alsó-középre igazítva, a maradék területet átlátszóan kitöltve.
-2. **Animáció soronként**: minden `MovementAnimation` és `BehaviorRule` sor saját `Animation` példányt kap a saját `FramesPerSecond` és `ZIndex` értékével. A képkockák a példányok között megosztottak, így ugyanaz a forrás eltérő sebességgel és rétegben is használható.
+2. **Animáció soronként**: minden `MovementAnimation` és `BehaviorRule` sor saját `Animation` példányt kap a saját `FramesPerSecond` értékével, a szabályok a saját `ZIndex`-ükkel is. A mozgási animáció `ZIndex`-e nem számít: az alapanimáció mindig legalul van, minden overlay alatt. A képkockák a példányok között megosztottak, így ugyanaz a forrás eltérő sebességgel és rétegben is használható.
 3. **Léptetés**: az összes animáció folyamatosan loopol; a motor `UpdateAnimations(deltaTime)` hívással lépteti őket.
 4. **Változás**: méretváltozáskor a képkockák újraskálázódnak; mentés után a motor újraépíti az animációkat. Mindkét esetben `ConfigurationChanged` tüzel, és a Karakter újra lekérdezi az animációkat.
 
