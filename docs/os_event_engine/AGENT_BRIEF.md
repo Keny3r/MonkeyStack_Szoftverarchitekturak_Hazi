@@ -12,7 +12,7 @@ Windows rendszermetrikákat mér (CPU, memória, háttértár, akku, ablakszám,
 - ✅ Döntések a #3 review-ján: host bekötés, `Simulation`-alapú Mock út, Observer/Reactor szóhasználat, platform-szolgáltató nálunk (A opció).
 - ✅ M1–M4: valódi Win32 mérés, monitorok, lánc, kiküldés; `Start`, `Reconfigure`, `UsePollingSettings`, `GetSnapshot`, `GetMonitorStatus`, `Dispose` működik. Saját terhelés ~0,15% (16 mag, 10 s mérés).
 - ✅ M5–M7: szimuláció (`Simulation`, `IsMockModeEnabled`), csúszkás OS Mock View (MVVM, presetek), 35 unit teszt (`tests/OsEventEngine.Tests`).
-- ⏳ Hátravan: M8 host bekötés (Karakter motor: `Start()`/`Dispose()`, `UsePollingSettings`) → M11 platform-szolgáltató → M10 minta-dokumentáció; opcionális M9 Reactor ([plan.md 9.](./plan.md#9-megvalósítási-lépések-mérföldkövek)).
+- ⏳ Hátravan: M8 host bekötés (Karakter motor: `Start()`/`Dispose()`, `UsePollingSettings`) → M11 `Win32PlatformProvider` (a szerződés már a Core-ban) → M10 minta-dokumentáció; opcionális M9 Reactor ([plan.md 9.](./plan.md#9-megvalósítási-lépések-mérföldkövek)).
 - Nincs több `NotImplementedException`. Tesztek: `dotnet test tests/OsEventEngine.Tests` (a CI még nem futtatja).
 
 ## Fájltérkép
@@ -21,6 +21,7 @@ Windows rendszermetrikákat mér (CPU, memória, háttértár, akku, ablakszám,
 | `src/MonkeyStack.Core/Events/IOsEventNotifier.cs`, `OsEventNotifier.cs` | **Közös szerződés, nem a miénk, ne módosítsd.** 7 esemény + `Notify…Changed`. |
 | `src/OsEventEngine/OsEventMonitorService.cs` | **Egyetlen publikus belépési pont** (Facade). |
 | `src/OsEventEngine/OsEventEngineOptions.cs` | `MonitorOptions`, `OsEventEngineOptions` (intervallum, deadband). |
+| `src/MonkeyStack.Core/Character/IPlatformProvider.cs`, `PlatformSnapshot.cs`, `ScreenArea.cs`, `ScreenRect.cs` | **Közös, ne módosítsd.** Platform-szolgáltató szerződés (#7); az OS motor valósítja meg (M11, `Win32PlatformProvider`), a Karakter fizika olvassa. |
 | `src/MonkeyStack.Core/Events/Metric.cs`, `IPollingSettingsProvider.cs` | **Közös, ne módosítsd.** Metrika enum; a mintavételi beállítások forrása (a Konfigurációs motor valósítja meg). |
 | `src/OsEventEngine/Monitoring/MetricCatalog.cs` | Tartományok, alap intervallumok, UI-leírók (egyeznek a `ConfigurationLimits`-szel; később a Core-ba). |
 | `src/OsEventEngine/Monitoring/MetricSample.cs`, `MonitorInterfaces.cs` | Belső minta + `IMetricMonitor`, `IConfigurableComponent`, `ISimulatable`, `MonitorStatus`. |

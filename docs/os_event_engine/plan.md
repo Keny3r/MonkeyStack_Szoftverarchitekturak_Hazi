@@ -552,7 +552,7 @@ Minden lépés külön commit / PR. A zárójelben a lefedett minták. Az M1–M
 - [ ] **M8 – Integráció (elfogadva a #3-ban):** `Start()` / `Dispose()` a `CharacterEngine` `App`-ban (Gergő és Frink Dávid), `UsePollingSettings` bekötése a Core-beli `IPollingSettingsProvider`-rel (*Component Configurator*).
 - [ ] **M9 – Reactor (opcionális, 2. fázis):** `Win32EventReactor` (WinEvent hook, `WM_POWERBROADCAST`, `WM_TIMECHANGE`) → `TriggerNow` (*Reactor*, *DCLO/Lazy*).
 - [ ] **M10 – Dokumentáció:** a ténylegesen megvalósult mintákat új fájlban dokumentálni (`docs/os_event_engine/patterns_applied.md`), osztály- és szekvenciadiagramokkal, a [Szótárra](../../README.md#szótár) hivatkozva.
-- [ ] **M11 – Platform szolgáltató (elfogadva a #3-ban, A opció):** `IPlatformProvider` a Core-ba (egyeztetve), `Win32PlatformProvider` az OS motorban, a [platform-javaslat](./platform_provider_proposal.md) döntései szerint (*Wrapper Facade*, *Reactor*, *Half-Sync/Half-Async*).
+- [ ] **M11 – Platform szolgáltató (elfogadva a #3-ban, A opció):** ✅ `IPlatformProvider` szerződés a Core-ban (#7); `Win32PlatformProvider` az OS motorban, a [platform-javaslat](./platform_provider_proposal.md) döntései szerint (*Wrapper Facade*, *Reactor*, *Half-Sync/Half-Async*).
 
 Az M1–M7 után a komponens önállóan demózható.
 
@@ -570,7 +570,7 @@ Az M1–M7 után a komponens önállóan demózható.
 | Tartományok és alapintervallumok egy helyen | Konfigurációs motor (Levente) | ⏳ Levente javaslata: a `MetricCatalog` és a `ConfigurationLimits` közös részét a #3 merge után a Core-ba, a `Metric` mellé. | Közös PR. |
 | Mock út és a `Notify…` hívások | Frink Dávid ([mvc_architecture.md](../mvc_architecture.md#os-események)) | ✅ Elfogadva: a View a `Simulation`-t hívja, nem közvetlenül a `Notify…Changed`-et ([5.1](#51-szimuláció-működése)). Az `IsMockModeEnabled` kényelmi kapcsoló marad. | Az MVC dokumentum frissítése (Frink Dávid). |
 | Minták szóhasználata | Mindenki | ✅ Elfogadva: C# esemény = Observer; Reactor = Win32 értesítések demultiplexálása ([3. fejezet](#3-alkalmazott-architekturális-minták)). | Az MVC minta-táblázat Reactor sorának pontosítása. |
-| Platformok (ablakperem, takarás, fullscreen) | Karakter motor (Gergő, Frink Dávid) | ✅ Elfogadva, A opció: `IPlatformProvider` a Core-ba, a megvalósítás az OS motorban ([platform-javaslat](./platform_provider_proposal.md#0-döntések)). | Nálunk M11. |
+| Platformok (ablakperem, takarás, fullscreen) | Karakter motor (Gergő, Frink Dávid) | ✅ Elfogadva, A opció. A szerződés a #7-tel a Core-ban (`IPlatformProvider`, `PlatformSnapshot`, `ScreenArea`, `ScreenRect`), a megvalósítás az OS motorban ([platform-javaslat](./platform_provider_proposal.md#0-döntések)). | Nálunk M11. |
 | Új metrika felvétele | Mindenki (`MonkeyStack.Core`) | Folyamat: új `*EventData` + `OsEventDataRegistry` mező + `IOsEventNotifier` esemény és `Notify…` metódus + `Metric` érték + coordinator feliratkozás. | Egyeztetés kell. |
 | Projekt típusa | Mindenki | Marad: az `OsEventEngine` WinExe, a `CharacterEngine` hivatkozik rá (az [MVC terv](../mvc_architecture.md#alapelvek-közös-modell-és-független-view-k) standalone F5 elve). | – |
 
