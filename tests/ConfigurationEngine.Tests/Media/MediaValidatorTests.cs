@@ -102,6 +102,40 @@ public sealed class MediaValidatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GifWithTooManyFrames_IsRejectedBeforeDecoding()
+    {
+        var frames = Enumerable.Range(0, ConfigurationLimits.MediaMaxFrames + 1)
+            .Select(_ => new GifFrame(0, 0, 1, 1, [1], Disposal: 1)).ToArray();
+        WriteGif(Path.Combine(_directory, "sok.gif"), 1, 1, frames);
+
+        Assert.Equal(ConfigurationLimits.MediaMaxFrames + 1, FrameDecoder.CountGifFrames(File.ReadAllBytes(Path.Combine(_directory, "sok.gif")), int.MaxValue));
+        var error = Assert.Single(await _validator.ValidateAsync(Gif("sok.gif"), MediaValidationDepth.Full));
+        Assert.Contains("képkockából áll", error.Message);
+    }
+
+    [Fact]
+    public async Task SpriteSheetWithMoreFramesThanCells_IsRejected()
+    {
+        WritePng(Path.Combine(_directory, "sheet.png"), 20, 10, Red);
+        var source = new AnimationSource
+        {
+            Id = 7,
+            Name = "Sheet",
+            SourceType = AnimationSourceType.SpriteSheet,
+            Path = "sheet.png",
+            FrameWidth = 10,
+            FrameHeight = 10,
+            Columns = 2,
+            Rows = 1,
+            FrameCount = 3
+        };
+
+        var error = Assert.Single(await _validator.ValidateAsync(source, MediaValidationDepth.Full));
+
+        Assert.Equal(nameof(AnimationSource.FrameCount), error.PropertyName);
+    }
+
+    [Fact]
     public async Task SpriteSheetWithMissingGridFields_IsRejected()
     {
         WritePng(Path.Combine(_directory, "sheet.png"), 10, 10, Red);

@@ -69,8 +69,6 @@ internal static class FrameDecoder
             throw PathError($"A(z) {name} nem GIF fájl.");
         }
 
-        CheckFrameCount(decoder.Frames.Count, name);
-
         // A logikai képernyő a GIF teljes mérete; a képkockák ennek egy-egy téglalapját rajzolják újra.
         var first = decoder.Frames[0];
         var width = ReadMetadata(() => decoder.Metadata, "/logscrdesc/Width", first.PixelWidth);
@@ -142,9 +140,11 @@ internal static class FrameDecoder
                 $"{columns * frameWidth} × {rows * frameHeight} px kellene ({columns} × {frameWidth}, {rows} × {frameHeight}).");
         }
 
-        if (frameCount > ConfigurationLimits.MediaMaxFrames)
+        if (frameCount > Math.Min(columns * rows, ConfigurationLimits.MediaMaxFrames))
         {
-            throw new MediaLoadException($"Legfeljebb {ConfigurationLimits.MediaMaxFrames} képkocka lehet.")
+            throw new MediaLoadException(
+                $"Legfeljebb {Math.Min(columns * rows, ConfigurationLimits.MediaMaxFrames)} képkocka lehet " +
+                $"(a rács {columns} × {rows} mezős, és legfeljebb {ConfigurationLimits.MediaMaxFrames} képkocka megengedett).")
             {
                 PropertyName = nameof(AnimationSource.FrameCount)
             };
@@ -220,7 +220,11 @@ internal static class FrameDecoder
             [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, ..] => new PngBitmapDecoder(memory, create, cache),
             [0xFF, 0xD8, 0xFF, ..] => new JpegBitmapDecoder(memory, create, cache),
             [(byte)'B', (byte)'M', ..] => new BmpBitmapDecoder(memory, create, cache),
-            [(byte)'G', (byte)'I', (byte)'F', (byte)'8', (byte)'7' or (byte)'9', (byte)'a', ..] => new GifBitmapDecoder(memory, create, cache),
+            // A WPF a Frames első elérésekor minden képkockához objektumot hoz létre, ezért a képkockaszámot előtte,
+            // a bájtokból ellenőrizzük: egy apró, sok százezer képkockás GIF különben gigabájtokat foglalna.
+            [(byte)'G', (byte)'I', (byte)'F', (byte)'8', (byte)'7' or (byte)'9', (byte)'a', ..]
+                when CheckFrameCount(CountGifFrames(bytes, ConfigurationLimits.MediaMaxFrames + 1), name)
+                => new GifBitmapDecoder(memory, create, cache),
             _ => throw PathError($"A(z) {name} nem PNG, JPEG, BMP vagy GIF kép.")
         };
 
@@ -253,11 +257,70 @@ internal static class FrameDecoder
         }
     }
 
-    private static void CheckFrameCount(int count, string name)
+    /// <returns>Mindig <c>true</c>, hogy mintaillesztés feltételében is használható legyen.</returns>
+    private static bool CheckFrameCount(int count, string name)
     {
         if (count > ConfigurationLimits.MediaMaxFrames)
         {
-            throw PathError($"A(z) {name} {count} képkockából áll; legfeljebb {ConfigurationLimits.MediaMaxFrames} lehet.");
+            throw PathError($"A(z) {name} több mint {ConfigurationLimits.MediaMaxFrames} képkockából áll; legfeljebb {ConfigurationLimits.MediaMaxFrames} lehet.");
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Megszámolja a GIF képkockáit (Image Descriptor blokkjait) a bájtokból, dekódolás nélkül, legfeljebb
+    /// <paramref name="stopAt"/>-ig. Hiányos vagy hibás fájlnál az addig talált számot adja; a hibát a dekóder jelzi.
+    /// </summary>
+    internal static int CountGifFrames(ReadOnlySpan<byte> gif, int stopAt)
+    {
+        const int headerAndScreenDescriptor = 13;
+        if (gif.Length < headerAndScreenDescriptor)
+        {
+            return 0;
+        }
+
+        var position = headerAndScreenDescriptor + ColorTableSize(gif[10]);
+        var count = 0;
+        while (position < gif.Length && count < stopAt)
+        {
+            switch (gif[position])
+            {
+                case 0x21: // Extension: bevezető, címke, alblokkok
+                    position = SkipSubBlocks(gif, position + 2);
+                    break;
+                case 0x2C: // Image Descriptor: 9 bájt, opcionális helyi paletta, LZW kódméret, alblokkok
+                    count++;
+                    if (position + 9 >= gif.Length)
+                    {
+                        return count;
+                    }
+
+                    position += 10 + ColorTableSize(gif[position + 9]);
+                    position = SkipSubBlocks(gif, position + 1);
+                    break;
+                default: // 0x3B (vége) vagy hibás blokk
+                    return count;
+            }
+        }
+
+        return count;
+
+        static int ColorTableSize(byte packed) => (packed & 0x80) != 0 ? 3 * (1 << ((packed & 0x07) + 1)) : 0;
+
+        static int SkipSubBlocks(ReadOnlySpan<byte> data, int position)
+        {
+            while (position < data.Length)
+            {
+                var size = data[position];
+                position += 1 + size;
+                if (size == 0)
+                {
+                    break;
+                }
+            }
+
+            return position;
         }
     }
 
