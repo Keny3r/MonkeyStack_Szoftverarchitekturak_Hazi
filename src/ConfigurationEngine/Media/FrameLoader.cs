@@ -37,8 +37,27 @@ public sealed class FrameLoader : IFrameLoader
     private IReadOnlyList<BitmapSource> Load(AnimationSource source, int width, int height, CancellationToken cancellationToken)
     {
         var files = MediaFiles.List(source, _paths.Resolve(source.Path));
+
+        // A skálázott képkockák mind a memóriában maradnak, ezért a számukat a karakter mérete is korlátozza:
+        // különben egy apró, sok képkockás GIF nagy karakterméreten több száz MB-ot foglalna.
+        var maxFrames = (int)Math.Min(
+            ConfigurationLimits.MediaMaxFrames,
+            ConfigurationLimits.MediaMaxLoadedBytes / ((long)width * height * BytesPerPixel));
         var frames = new List<BitmapSource>();
-        FrameDecoder.Decode(source, files, frame => frames.Add(Fit(frame, width, height)), cancellationToken);
+        FrameDecoder.Decode(
+            source,
+            files,
+            frame =>
+            {
+                if (frames.Count == maxFrames)
+                {
+                    throw new MediaLoadException(
+                        $"{width} × {height} px karakterméreten egy forrás legfeljebb {maxFrames} képkockából állhat.");
+                }
+
+                frames.Add(Fit(frame, width, height));
+            },
+            cancellationToken);
         return frames;
     }
 

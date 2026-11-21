@@ -129,6 +129,18 @@ public sealed class FrameLoaderTests : IDisposable
     }
 
     [Fact]
+    public async Task LoadedFramesAreLimitedByCharacterSize()
+    {
+        // 65 képkocka: 100 × 100 px-en belefér a keretbe, 512 × 512 px-en (64 MB / 1 MB = 64) nem.
+        var frames = Enumerable.Range(0, 65).Select(_ => new GifFrame(0, 0, 1, 1, [1], Disposal: 1)).ToArray();
+        WriteGif(Path.Combine(_directory, "many.gif"), 1, 1, frames);
+        var source = new AnimationSource { Name = "Gif", SourceType = AnimationSourceType.Gif, Path = "many.gif" };
+
+        Assert.Equal(65, (await _loader.LoadFramesAsync(source, 100, 100)).Count);
+        await Assert.ThrowsAsync<MediaLoadException>(() => _loader.LoadFramesAsync(source, 512, 512));
+    }
+
+    [Fact]
     public async Task LoadedFile_IsNotLocked()
     {
         var file = Path.Combine(_directory, "locked", "1.png");
