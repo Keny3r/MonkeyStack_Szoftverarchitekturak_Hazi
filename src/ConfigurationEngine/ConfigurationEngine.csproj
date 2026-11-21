@@ -16,6 +16,13 @@
     <InternalsVisibleTo Include="ConfigurationEngine.Tests" />
   </ItemGroup>
 
+  <!-- A szállított képek (pl. a mozgásállapotok alapanimációi) a repó gyökerében lévő assets mappából. A kimenet
+       assets mappájába kerülnek, és a projektre hivatkozó alkalmazások kimenetébe is átmásolódnak; a relatív
+       forrásútvonalak ehhez képest értendők. -->
+  <ItemGroup>
+    <Content Include="..\..\assets\**" LinkBase="assets" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>

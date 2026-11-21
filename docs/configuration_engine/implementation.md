@@ -17,6 +17,7 @@ Ez a dokumentum a [Konfigurációs motor](../components.md#konfigurációs-motor
 | [`Validation/ConfigurationValidator.cs`](../../src/ConfigurationEngine/Validation/ConfigurationValidator.cs) | Az [`IConfigurationValidator`](../../src/ConfigurationEngine/Validation/IConfigurationValidator.cs) megvalósítása: mező- és kereszthivatkozási szabályok |
 | [`Model/ConfigurationDefaults.cs`](../../src/ConfigurationEngine/Model/ConfigurationDefaults.cs) | Alapértékek és a szállított alapanimációk: új adatbázis, illetve hiányzó vagy hibás sor helyett |
 | [`tests/ConfigurationEngine.Tests`](../../tests/ConfigurationEngine.Tests) | A validátor és a tároló tesztjei |
+| [`Media/`](../../src/ConfigurationEngine/Media), [`Validation/MediaValidator.cs`](../../src/ConfigurationEngine/Validation/MediaValidator.cs), [`assets/`](../../assets) | Médiaréteg: képkockák betöltése és skálázása, a médiafájlok ellenőrzése, szállított képek; részletesen: [Médiaréteg](./media.md) |
 
 Az adatbázis helye `%LOCALAPPDATA%\MonkeyStack\config.db`. A tároló minden művelethez saját kapcsolatot nyit kapcsolat-készlet nélkül, így a fájl a művelet végén felszabadul. A migráció példányonként csak az első műveletnél fut le, illetve újra, ha az adatbázisfájl közben eltűnt vagy helyreállítás miatt új jön létre.
 
