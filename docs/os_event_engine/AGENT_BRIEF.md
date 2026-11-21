@@ -13,7 +13,7 @@ Windows rendszermetrikákat mér (CPU, memória, háttértár, akku, ablakszám,
 - ✅ M1–M4: valódi Win32 mérés, monitorok, lánc, kiküldés; `Start`, `Reconfigure`, `UsePollingSettings`, `GetSnapshot`, `GetMonitorStatus`, `Dispose` működik. Saját terhelés ~0,15% (16 mag, 10 s mérés).
 - ✅ M5–M7: szimuláció (`Simulation`, `IsMockModeEnabled`), csúszkás OS Mock View (MVVM, presetek), 35 unit teszt (`tests/OsEventEngine.Tests`).
 - ⏳ Hátravan: M8 host bekötés (Karakter motor: `Start()`/`Dispose()`, `UsePollingSettings`) → M11 `Win32PlatformProvider` (a szerződés már a Core-ban) → M10 minta-dokumentáció; opcionális M9 Reactor ([plan.md 9.](./plan.md#9-megvalósítási-lépések-mérföldkövek)).
-- Nincs több `NotImplementedException`. Tesztek: `dotnet test tests/OsEventEngine.Tests` (a CI még nem futtatja).
+- Nincs több `NotImplementedException`. Tesztek: `dotnet test tests/OsEventEngine.Tests` (a CI minden PR-on futtatja).
 
 ## Fájltérkép
 | Fájl | Szerep |
