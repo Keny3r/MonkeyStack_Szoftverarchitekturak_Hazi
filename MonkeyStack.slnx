@@ -6,6 +6,7 @@
     <Project Path="src/OsEventEngine/OsEventEngine.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/ConfigurationEngine.Tests/ConfigurationEngine.Tests.csproj" />
     <Project Path="tests/OsEventEngine.Tests/OsEventEngine.Tests.csproj" />
   </Folder>
 </Solution>
