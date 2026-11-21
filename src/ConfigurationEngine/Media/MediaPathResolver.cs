@@ -44,13 +44,36 @@ public sealed class MediaPathResolver
             throw PathError("Az útvonal legyen teljes (pl. C:\\Képek\\majom.gif), vagy az assets mappához képest relatív.");
         }
 
+        string fullPath;
         try
         {
-            return Path.GetFullPath(Path.IsPathRooted(path) ? path : Path.Combine(AssetsDirectory, path));
+            fullPath = Path.GetFullPath(Path.IsPathRooted(path) ? path : Path.Combine(AssetsDirectory, path));
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
         {
             throw PathError("Az útvonal érvénytelen.", ex);
+        }
+
+        // A hálózati meghajtóra csatolt megosztás (pl. Z:\) is hálózati útvonal; egy elérhetetlen megosztás
+        // a fájlrendszer-hívásokat is megakaszthatná. A szállított képek (relatív útvonal) helyét nem ellenőrizzük.
+        if (Path.IsPathRooted(path) && IsNetworkDrive(fullPath))
+        {
+            throw PathError("Hálózati meghajtón lévő fájl nem megengedett.");
+        }
+
+        return fullPath;
+    }
+
+    private static bool IsNetworkDrive(string fullPath)
+    {
+        try
+        {
+            var root = Path.GetPathRoot(fullPath);
+            return !string.IsNullOrEmpty(root) && new DriveInfo(root).DriveType == DriveType.Network;
+        }
+        catch (ArgumentException)
+        {
+            return false;
         }
     }
 
