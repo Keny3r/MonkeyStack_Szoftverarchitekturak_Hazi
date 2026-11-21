@@ -59,6 +59,12 @@ public static class ConfigurationLimits
     /// </summary>
     public const long MediaMaxLoadedBytes = 64L * 1024 * 1024;
 
+    /// <summary>
+    /// Egy forrás dekódolandó pixelei összesen (képkockaszám × képkockaméret), hogy egy jól tömöríthető, apró fájl
+    /// ne írhasson le sok óriási képkockát. 500 darab 512 × 512 px-es képkockának elég.
+    /// </summary>
+    public const long MediaMaxDecodedPixels = 500L * 512 * 512;
+
     public static readonly IReadOnlySet<string> GifExtensions =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".gif" };
 

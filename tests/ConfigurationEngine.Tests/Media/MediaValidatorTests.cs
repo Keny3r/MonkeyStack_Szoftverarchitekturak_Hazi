@@ -108,9 +108,43 @@ public sealed class MediaValidatorTests : IDisposable
             .Select(_ => new GifFrame(0, 0, 1, 1, [1], Disposal: 1)).ToArray();
         WriteGif(Path.Combine(_directory, "sok.gif"), 1, 1, frames);
 
-        Assert.Equal(ConfigurationLimits.MediaMaxFrames + 1, FrameDecoder.CountGifFrames(File.ReadAllBytes(Path.Combine(_directory, "sok.gif")), int.MaxValue));
+        Assert.Equal(ConfigurationLimits.MediaMaxFrames + 1, FrameDecoder.ReadGifLayout(File.ReadAllBytes(Path.Combine(_directory, "sok.gif")), int.MaxValue).FrameCount);
         var error = Assert.Single(await _validator.ValidateAsync(Gif("sok.gif"), MediaValidationDepth.Full));
         Assert.Contains("képkockából áll", error.Message);
+    }
+
+    [Fact]
+    public async Task GifWithTooManyDecodedPixels_IsRejectedBeforeDecoding()
+    {
+        // 8 képkocka egy 4096 × 4096 px-es vásznon: a fájl apró, de 134 millió pixelt kellene dekódolni.
+        var frames = Enumerable.Range(0, 8).Select(_ => new GifFrame(0, 0, 1, 1, [1], Disposal: 1)).ToArray();
+        WriteGif(Path.Combine(_directory, "nagy-vaszon.gif"), 4096, 4096, frames);
+
+        var error = Assert.Single(await _validator.ValidateAsync(Gif("nagy-vaszon.gif"), MediaValidationDepth.Full));
+
+        Assert.Contains("millió pixel", error.Message);
+    }
+
+    [Fact]
+    public async Task GifWithEmptyLogicalScreen_UsesFrameExtent()
+    {
+        WriteGif(Path.Combine(_directory, "ures-vaszon.gif"), 0, 0, new GifFrame(1, 1, 2, 2, [1, 1, 1, 1], Disposal: 0));
+
+        Assert.Empty(await _validator.ValidateAsync(Gif("ures-vaszon.gif"), MediaValidationDepth.Full));
+        Assert.Equal(
+            new FrameDecoder.GifLayout(1, 3, 3),
+            FrameDecoder.ReadGifLayout(File.ReadAllBytes(Path.Combine(_directory, "ures-vaszon.gif")), int.MaxValue));
+    }
+
+    [Fact]
+    public void FrameSinkFailure_IsNotReportedAsCorruptFile()
+    {
+        WriteGif(Path.Combine(_directory, "jo.gif"), 1, 1, new GifFrame(0, 0, 1, 1, [1], Disposal: 0));
+        var source = Gif("jo.gif");
+        var files = MediaFiles.List(source, Path.Combine(_directory, "jo.gif"));
+
+        Assert.Throws<InvalidOperationException>(() =>
+            FrameDecoder.Decode(source, files, _ => throw new InvalidOperationException("hiba a fogadóban"), CancellationToken.None));
     }
 
     [Fact]

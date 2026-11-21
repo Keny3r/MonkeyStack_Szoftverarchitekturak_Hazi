@@ -2,6 +2,7 @@ namespace ConfigurationEngine.Media;
 
 using System.Globalization;
 using System.IO;
+using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Media;
@@ -10,7 +11,7 @@ using ConfigurationEngine.Model;
 
 /// <summary>
 /// Egy animációs forrás képkockáinak dekódolása eredeti méretben, <see cref="PixelFormats.Pbgra32"/> formátumban.
-/// A korlátokat (képméret, képkockaszám) a teljes dekódolás előtt, a fejlécből ellenőrzi. A formátumot a fájl első
+/// A korlátokat (képméret, képkockaszám, a dekódolandó pixelek összesen) a teljes dekódolás előtt, a fejlécből ellenőrzi. A formátumot a fájl első
 /// bájtjaiból maga állapítja meg, és csak a WPF beépített PNG, JPEG, BMP vagy GIF dekóderét indítja el, így a
 /// rendszerre telepített egyéb képkodekek a fájlt nem is látják.
 /// Csak pixelpufferekkel dolgozik, ezért bármelyik szálon hívható.
@@ -36,22 +37,39 @@ internal static class FrameDecoder
         Action<BitmapSource>? onFrame,
         CancellationToken cancellationToken)
     {
+        // A fogadó hibáit (pl. a skálázásét) nem akarjuk sérült fájlnak jelezni, ezért becsomagolva visszük ki.
+        var sink = onFrame is null ? null : new Action<BitmapSource>(frame =>
+        {
+            try
+            {
+                onFrame(frame);
+            }
+            catch (Exception ex) when (ex is not (MediaLoadException or OperationCanceledException))
+            {
+                throw new SinkException(ex);
+            }
+        });
+
         try
         {
             switch (source.SourceType)
             {
                 case AnimationSourceType.Gif:
-                    DecodeGif(files[0], onFrame, cancellationToken);
+                    DecodeGif(files[0], sink, cancellationToken);
                     break;
                 case AnimationSourceType.SpriteSheet:
-                    DecodeSpriteSheet(source, files[0], onFrame, cancellationToken);
+                    DecodeSpriteSheet(source, files[0], sink, cancellationToken);
                     break;
                 case AnimationSourceType.ImageFolder:
-                    DecodeFolder(files, onFrame, cancellationToken);
+                    DecodeFolder(files, sink, cancellationToken);
                     break;
                 default:
                     throw new MediaLoadException("Ismeretlen forrástípus.") { PropertyName = nameof(AnimationSource.SourceType) };
             }
+        }
+        catch (SinkException ex)
+        {
+            ExceptionDispatchInfo.Throw(ex.InnerException!);
         }
         catch (Exception ex) when (ex is not (MediaLoadException or OperationCanceledException or OutOfMemoryException))
         {
@@ -63,17 +81,14 @@ internal static class FrameDecoder
     private static void DecodeGif(string file, Action<BitmapSource>? onFrame, CancellationToken cancellationToken)
     {
         var name = Path.GetFileName(file);
-        var decoder = OpenDecoder(file);
+        var decoder = OpenDecoder(file, out var layout);
         if (decoder is not GifBitmapDecoder)
         {
             throw PathError($"A(z) {name} nem GIF fájl.");
         }
 
-        // A logikai képernyő a GIF teljes mérete; a képkockák ennek egy-egy téglalapját rajzolják újra.
-        var first = decoder.Frames[0];
-        var width = ReadMetadata(() => decoder.Metadata, "/logscrdesc/Width", first.PixelWidth);
-        var height = ReadMetadata(() => decoder.Metadata, "/logscrdesc/Height", first.PixelHeight);
-        CheckImageSize(width, height, name);
+        // A vászon a GIF teljes mérete; a képkockák ennek egy-egy téglalapját rajzolják újra.
+        var (width, height) = (layout.Width, layout.Height);
 
         var canvas = new int[width * height];
         int[]? saved = null;
@@ -172,6 +187,7 @@ internal static class FrameDecoder
             if (width == 0)
             {
                 (width, height) = (image.PixelWidth, image.PixelHeight);
+                CheckDecodedPixels(files.Count, width, height, "A mappa képei");
             }
             else if (image.PixelWidth != width || image.PixelHeight != height)
             {
@@ -189,8 +205,12 @@ internal static class FrameDecoder
     /// Megnyitja a fájlt, és az első bájtjai alapján elindítja a megfelelő beépített dekódert. A fájlt egyben
     /// beolvassa és rögtön elengedi, így az nem marad zárolva. A pixelek csak a képkockák kiolvasásakor dekódolódnak.
     /// </summary>
-    private static BitmapDecoder OpenDecoder(string file)
+    private static BitmapDecoder OpenDecoder(string file) => OpenDecoder(file, out _);
+
+    /// <param name="gif">GIF fájlnál a vászon mérete és a képkockák száma, a bájtokból.</param>
+    private static BitmapDecoder OpenDecoder(string file, out GifLayout gif)
     {
+        gif = default;
         var name = Path.GetFileName(file);
         byte[] bytes;
         try
@@ -212,6 +232,20 @@ internal static class FrameDecoder
             throw PathError($"A(z) {name} nem olvasható.", ex);
         }
 
+        if (bytes is [(byte)'G', (byte)'I', (byte)'F', (byte)'8', (byte)'7' or (byte)'9', (byte)'a', ..])
+        {
+            // A WPF a Frames első elérésekor minden képkockához objektumot hoz létre, ezért a korlátokat előtte,
+            // a bájtokból ellenőrizzük: egy apró, sok képkockás GIF különben gigabájtokat foglalna.
+            gif = ReadGifLayout(bytes, ConfigurationLimits.MediaMaxFrames + 1);
+            if (gif.FrameCount > ConfigurationLimits.MediaMaxFrames)
+            {
+                throw PathError($"A(z) {name} több mint {ConfigurationLimits.MediaMaxFrames} képkockából áll; legfeljebb {ConfigurationLimits.MediaMaxFrames} lehet.");
+            }
+
+            CheckImageSize(gif.Width, gif.Height, name);
+            CheckDecodedPixels(gif.FrameCount, gif.Width, gif.Height, $"A(z) {name} képkockái");
+        }
+
         var memory = new MemoryStream(bytes, writable: false);
         const BitmapCreateOptions create = BitmapCreateOptions.None;
         const BitmapCacheOption cache = BitmapCacheOption.None;
@@ -220,11 +254,7 @@ internal static class FrameDecoder
             [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, ..] => new PngBitmapDecoder(memory, create, cache),
             [0xFF, 0xD8, 0xFF, ..] => new JpegBitmapDecoder(memory, create, cache),
             [(byte)'B', (byte)'M', ..] => new BmpBitmapDecoder(memory, create, cache),
-            // A WPF a Frames első elérésekor minden képkockához objektumot hoz létre, ezért a képkockaszámot előtte,
-            // a bájtokból ellenőrizzük: egy apró, sok százezer képkockás GIF különben gigabájtokat foglalna.
-            [(byte)'G', (byte)'I', (byte)'F', (byte)'8', (byte)'7' or (byte)'9', (byte)'a', ..]
-                when CheckFrameCount(CountGifFrames(bytes, ConfigurationLimits.MediaMaxFrames + 1), name)
-                => new GifBitmapDecoder(memory, create, cache),
+            [(byte)'G', (byte)'I', (byte)'F', (byte)'8', (byte)'7' or (byte)'9', (byte)'a', ..] => new GifBitmapDecoder(memory, create, cache),
             _ => throw PathError($"A(z) {name} nem PNG, JPEG, BMP vagy GIF kép.")
         };
 
@@ -257,29 +287,38 @@ internal static class FrameDecoder
         }
     }
 
-    /// <returns>Mindig <c>true</c>, hogy mintaillesztés feltételében is használható legyen.</returns>
-    private static bool CheckFrameCount(int count, string name)
+    /// <summary>
+    /// A dekódolandó pixelek összesen: enélkül egy jól tömöríthető, apró fájl sok óriási képkockát írhatna le,
+    /// amelyek dekódolása percekig tartana.
+    /// </summary>
+    private static void CheckDecodedPixels(int frameCount, int width, int height, string subject)
     {
-        if (count > ConfigurationLimits.MediaMaxFrames)
+        if ((long)frameCount * width * height > ConfigurationLimits.MediaMaxDecodedPixels)
         {
-            throw PathError($"A(z) {name} több mint {ConfigurationLimits.MediaMaxFrames} képkockából áll; legfeljebb {ConfigurationLimits.MediaMaxFrames} lehet.");
+            throw PathError(
+                $"{subject} együtt túl nagyok ({frameCount} × {width} × {height} px); " +
+                $"legfeljebb {ConfigurationLimits.MediaMaxDecodedPixels / 1_000_000} millió pixel lehet.");
         }
-
-        return true;
     }
 
+    /// <summary>A GIF vászonmérete és képkockaszáma.</summary>
+    internal readonly record struct GifLayout(int FrameCount, int Width, int Height);
+
     /// <summary>
-    /// Megszámolja a GIF képkockáit (Image Descriptor blokkjait) a bájtokból, dekódolás nélkül, legfeljebb
-    /// <paramref name="stopAt"/>-ig. Hiányos vagy hibás fájlnál az addig talált számot adja; a hibát a dekóder jelzi.
+    /// A GIF bájtjaiból, dekódolás nélkül: a képkockák (Image Descriptor blokkok) száma legfeljebb
+    /// <paramref name="stopAt"/>-ig, és a vászon mérete. A vászon a logikai képernyő, de legalább akkora, hogy minden
+    /// képkocka ráférjen (egyes fájlokban a logikai képernyő 0 × 0). Hiányos vagy hibás fájlnál az addig talált
+    /// értékeket adja; a hibát a dekóder jelzi.
     /// </summary>
-    internal static int CountGifFrames(ReadOnlySpan<byte> gif, int stopAt)
+    internal static GifLayout ReadGifLayout(ReadOnlySpan<byte> gif, int stopAt)
     {
         const int headerAndScreenDescriptor = 13;
         if (gif.Length < headerAndScreenDescriptor)
         {
-            return 0;
+            return default;
         }
 
+        int width = ReadUInt16(gif, 6), height = ReadUInt16(gif, 8);
         var position = headerAndScreenDescriptor + ColorTableSize(gif[10]);
         var count = 0;
         while (position < gif.Length && count < stopAt)
@@ -289,22 +328,26 @@ internal static class FrameDecoder
                 case 0x21: // Extension: bevezető, címke, alblokkok
                     position = SkipSubBlocks(gif, position + 2);
                     break;
-                case 0x2C: // Image Descriptor: 9 bájt, opcionális helyi paletta, LZW kódméret, alblokkok
+                case 0x2C: // Image Descriptor: bal, felső, szélesség, magasság, jelzők; opcionális helyi paletta, LZW kódméret, alblokkok
                     count++;
                     if (position + 9 >= gif.Length)
                     {
-                        return count;
+                        return new(count, width, height);
                     }
 
+                    width = Math.Max(width, ReadUInt16(gif, position + 1) + ReadUInt16(gif, position + 5));
+                    height = Math.Max(height, ReadUInt16(gif, position + 3) + ReadUInt16(gif, position + 7));
                     position += 10 + ColorTableSize(gif[position + 9]);
                     position = SkipSubBlocks(gif, position + 1);
                     break;
                 default: // 0x3B (vége) vagy hibás blokk
-                    return count;
+                    return new(count, width, height);
             }
         }
 
-        return count;
+        return new(count, width, height);
+
+        static int ReadUInt16(ReadOnlySpan<byte> data, int offset) => data[offset] | (data[offset + 1] << 8);
 
         static int ColorTableSize(byte packed) => (packed & 0x80) != 0 ? 3 * (1 << ((packed & 0x07) + 1)) : 0;
 
@@ -400,4 +443,7 @@ internal static class FrameDecoder
 
     private static MediaLoadException PathError(string message, Exception? inner = null) =>
         new(message, inner) { PropertyName = nameof(AnimationSource.Path) };
+
+    /// <summary>A képkocka-fogadó hibája, amelyet a dekódolás hibáitól elkülönítve, eredeti formájában adunk tovább.</summary>
+    private sealed class SinkException(Exception inner) : Exception(inner.Message, inner);
 }
