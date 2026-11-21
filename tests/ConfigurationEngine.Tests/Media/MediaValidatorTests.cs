@@ -84,6 +84,35 @@ public sealed class MediaValidatorTests : IDisposable
     }
 
     [Fact]
+    public async Task OtherImageFormatWithPngExtension_IsRejected()
+    {
+        // TIFF tartalom .png kiterjesztéssel: a TIFF dekóder el sem indulhat.
+        Directory.CreateDirectory(Path.Combine(_directory, "tiff"));
+        var encoder = new System.Windows.Media.Imaging.TiffBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(
+            System.Windows.Media.Imaging.BitmapSource.Create(1, 1, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, new byte[4], 4)));
+        using (var stream = File.Create(Path.Combine(_directory, "tiff", "1.png")))
+        {
+            encoder.Save(stream);
+        }
+
+        var error = Assert.Single(await _validator.ValidateAsync(Folder("tiff"), MediaValidationDepth.Full));
+
+        Assert.Equal(nameof(AnimationSource.Path), error.PropertyName);
+    }
+
+    [Fact]
+    public async Task SpriteSheetWithMissingGridFields_IsRejected()
+    {
+        WritePng(Path.Combine(_directory, "sheet.png"), 10, 10, Red);
+        var source = new AnimationSource { Id = 7, Name = "Sheet", SourceType = AnimationSourceType.SpriteSheet, Path = "sheet.png" };
+
+        var error = Assert.Single(await _validator.ValidateAsync(source, MediaValidationDepth.Full));
+
+        Assert.Contains("rács", error.Message);
+    }
+
+    [Fact]
     public async Task TooLargeFile_IsRejected()
     {
         using (var stream = File.Create(Path.Combine(_directory, "nagy.gif")))

@@ -38,7 +38,7 @@ public sealed class MediaValidator : IMediaValidator
             var files = MediaFiles.List(source, _paths.Resolve(source.Path));
             if (depth == MediaValidationDepth.Full)
             {
-                FrameDecoder.Decode(source, files, static _ => { }, cancellationToken);
+                FrameDecoder.Decode(source, files, onFrame: null, cancellationToken);
             }
 
             return [];

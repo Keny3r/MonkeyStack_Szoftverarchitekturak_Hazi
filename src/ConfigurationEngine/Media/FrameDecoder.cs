@@ -10,8 +10,9 @@ using ConfigurationEngine.Model;
 
 /// <summary>
 /// Egy animációs forrás képkockáinak dekódolása eredeti méretben, <see cref="PixelFormats.Pbgra32"/> formátumban.
-/// A korlátokat (képméret, képkockaszám) a teljes dekódolás előtt, a fejlécből ellenőrzi, és csak a beépített
-/// PNG, JPEG, BMP és GIF dekódert fogadja el, így a rendszerre telepített egyéb képkodekek nem futnak.
+/// A korlátokat (képméret, képkockaszám) a teljes dekódolás előtt, a fejlécből ellenőrzi. A formátumot a fájl első
+/// bájtjaiból maga állapítja meg, és csak a WPF beépített PNG, JPEG, BMP vagy GIF dekóderét indítja el, így a
+/// rendszerre telepített egyéb képkodekek a fájlt nem is látják.
 /// Csak pixelpufferekkel dolgozik, ezért bármelyik szálon hívható.
 /// </summary>
 internal static class FrameDecoder
@@ -27,11 +28,12 @@ internal static class FrameDecoder
     /// gyűjti össze, így egyszerre csak egy eredeti méretű képkocka van a memóriában.
     /// </summary>
     /// <param name="files">A forrás fájljai (<see cref="MediaFiles.List"/>).</param>
+    /// <param name="onFrame">A képkockák fogadója; <c>null</c>, ha csak ellenőrzünk, ilyenkor a képkockák nem készülnek el.</param>
     /// <exception cref="MediaLoadException">Ha a forrás nem dekódolható vagy túllépi a korlátokat.</exception>
     public static void Decode(
         AnimationSource source,
         IReadOnlyList<string> files,
-        Action<BitmapSource> onFrame,
+        Action<BitmapSource>? onFrame,
         CancellationToken cancellationToken)
     {
         try
@@ -58,7 +60,7 @@ internal static class FrameDecoder
         }
     }
 
-    private static void DecodeGif(string file, Action<BitmapSource> onFrame, CancellationToken cancellationToken)
+    private static void DecodeGif(string file, Action<BitmapSource>? onFrame, CancellationToken cancellationToken)
     {
         var name = Path.GetFileName(file);
         var decoder = OpenDecoder(file);
@@ -109,7 +111,7 @@ internal static class FrameDecoder
             }
 
             DrawOver(canvas, width, height, ToPixels(frame), rect);
-            onFrame(Create(canvas, width, height));
+            onFrame?.Invoke(Create(canvas, width, height));
 
             previousDisposal = disposal;
             previousRect = rect;
@@ -119,16 +121,19 @@ internal static class FrameDecoder
     private static void DecodeSpriteSheet(
         AnimationSource source,
         string file,
-        Action<BitmapSource> onFrame,
+        Action<BitmapSource>? onFrame,
         CancellationToken cancellationToken)
     {
+        // A rács tartományait a ConfigurationValidator ellenőrzi; itt csak azt, hogy ki vannak-e töltve.
+        if (source is not { FrameWidth: int frameWidth, FrameHeight: int frameHeight, Columns: int columns, Rows: int rows, FrameCount: int frameCount }
+            || frameWidth <= 0 || frameHeight <= 0 || columns <= 0 || rows <= 0 || frameCount <= 0)
+        {
+            throw new MediaLoadException("A sprite sheet rácsának minden mezőjét pozitív értékkel ki kell tölteni.");
+        }
+
         var name = Path.GetFileName(file);
         var sheet = OpenImage(file);
         CheckImageSize(sheet.PixelWidth, sheet.PixelHeight, name);
-
-        // A rács mezőit a ConfigurationValidator már ellenőrizte (kitöltöttek, tartományon belül).
-        int frameWidth = source.FrameWidth!.Value, frameHeight = source.FrameHeight!.Value;
-        int columns = source.Columns!.Value, rows = source.Rows!.Value, frameCount = source.FrameCount!.Value;
 
         if (sheet.PixelWidth != columns * frameWidth || sheet.PixelHeight != rows * frameHeight)
         {
@@ -150,11 +155,11 @@ internal static class FrameDecoder
         {
             cancellationToken.ThrowIfCancellationRequested();
             var rect = new Int32Rect(index % columns * frameWidth, index / columns * frameHeight, frameWidth, frameHeight);
-            onFrame(Create(Crop(pixels, sheet.PixelWidth, rect), frameWidth, frameHeight));
+            onFrame?.Invoke(Create(Crop(pixels, sheet.PixelWidth, rect), frameWidth, frameHeight));
         }
     }
 
-    private static void DecodeFolder(IReadOnlyList<string> files, Action<BitmapSource> onFrame, CancellationToken cancellationToken)
+    private static void DecodeFolder(IReadOnlyList<string> files, Action<BitmapSource>? onFrame, CancellationToken cancellationToken)
     {
         int width = 0, height = 0;
         foreach (var file in files)
@@ -175,33 +180,53 @@ internal static class FrameDecoder
                     $"{name} {image.PixelWidth} × {image.PixelHeight} px.");
             }
 
-            onFrame(Create(ToPixels(image), width, height));
+            var pixels = ToPixels(image);
+            onFrame?.Invoke(Create(pixels, width, height));
         }
     }
 
     /// <summary>
-    /// Megnyitja a fájlt, és a tartalma alapján dekódert választ. A fájlt egyben beolvassa és rögtön elengedi,
-    /// így az nem marad zárolva. A pixelek csak a képkockák tényleges kiolvasásakor dekódolódnak.
+    /// Megnyitja a fájlt, és az első bájtjai alapján elindítja a megfelelő beépített dekódert. A fájlt egyben
+    /// beolvassa és rögtön elengedi, így az nem marad zárolva. A pixelek csak a képkockák kiolvasásakor dekódolódnak.
     /// </summary>
     private static BitmapDecoder OpenDecoder(string file)
     {
+        var name = Path.GetFileName(file);
         byte[] bytes;
-        using (var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read))
+        try
         {
+            // Más program (pl. képszerkesztő, felhőszinkron) közben is írhatja vagy törölheti a fájlt.
+            using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+
             // A gyors ellenőrzés óta a fájl megnőhetett.
             if (stream.Length > ConfigurationLimits.MediaFileMaxBytes)
             {
-                throw PathError($"A(z) {Path.GetFileName(file)} legfeljebb {ConfigurationLimits.MediaFileMaxBytes / (1024 * 1024)} MB lehet.");
+                throw PathError($"A(z) {name} legfeljebb {ConfigurationLimits.MediaFileMaxBytes / (1024 * 1024)} MB lehet.");
             }
 
             bytes = new byte[stream.Length];
             stream.ReadExactly(bytes);
         }
-
-        var decoder = BitmapDecoder.Create(new MemoryStream(bytes, writable: false), BitmapCreateOptions.None, BitmapCacheOption.None);
-        if (decoder is not (PngBitmapDecoder or JpegBitmapDecoder or BmpBitmapDecoder or GifBitmapDecoder) || decoder.Frames.Count == 0)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            throw PathError($"A(z) {Path.GetFileName(file)} nem PNG, JPEG, BMP vagy GIF kép.");
+            throw PathError($"A(z) {name} nem olvasható.", ex);
+        }
+
+        var memory = new MemoryStream(bytes, writable: false);
+        const BitmapCreateOptions create = BitmapCreateOptions.None;
+        const BitmapCacheOption cache = BitmapCacheOption.None;
+        BitmapDecoder decoder = bytes switch
+        {
+            [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, ..] => new PngBitmapDecoder(memory, create, cache),
+            [0xFF, 0xD8, 0xFF, ..] => new JpegBitmapDecoder(memory, create, cache),
+            [(byte)'B', (byte)'M', ..] => new BmpBitmapDecoder(memory, create, cache),
+            [(byte)'G', (byte)'I', (byte)'F', (byte)'8', (byte)'7' or (byte)'9', (byte)'a', ..] => new GifBitmapDecoder(memory, create, cache),
+            _ => throw PathError($"A(z) {name} nem PNG, JPEG, BMP vagy GIF kép.")
+        };
+
+        if (decoder.Frames.Count == 0)
+        {
+            throw PathError($"A(z) {name} nem tartalmaz képet.");
         }
 
         return decoder;
