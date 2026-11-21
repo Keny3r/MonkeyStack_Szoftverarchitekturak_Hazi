@@ -3,8 +3,10 @@ namespace MonkeyStack.Core.Animation;
 using System.Windows.Media.Imaging;
 
 /// <summary>
-/// A közös Modell réteg pozíció nélküli animációs interfésze.
-/// Az animációs objektumokat a Konfigurációs motor hozza létre, skálázza, állítja be és pörgeti (Update).
+/// A közös Modell réteg pozíció nélküli, csak olvasható animációs interfésze: ezt kapják a nézetek
+/// (Karakter View, konfigurációs ablak), amelyek csak kirajzolják az aktuális képkockát.
+/// Az animációs objektumokat a Konfigurációs motor hozza létre, skálázza, állítja be és pörgeti; ehhez az
+/// <see cref="IMutableAnimation"/> bővítő interfészt használja (Extension Interface minta).
 /// Pozíciót nem tárol, így ugyanannak a modellnek a képkockáját a Config View és a Karakter View
 /// saját AnimationView példányai egymástól függetlenül tudják kirajzolni.
 /// </summary>
@@ -38,20 +40,11 @@ public interface IAnimation
     /// <summary>
     /// Az animáció lejátszási sebessége (képkocka / másodperc).
     /// </summary>
-    double FramesPerSecond { get; set; }
+    double FramesPerSecond { get; }
 
     /// <summary>
-    /// Az animáció rétegsorrendje (Z-pozíció) az overlayek rendezéséhez.
+    /// Az overlay-ek egymás közti rétegsorrendje (Z-pozíció): a kisebbet rajzoljuk előbb. Az alap mozgásanimációnál
+    /// nem számít, mert az mindig legalul van, minden overlay alatt.
     /// </summary>
-    int ZIndex { get; set; }
-
-    /// <summary>
-    /// Frissíti az animáció megjelenítési méretét (pl. amikor a Config menüben átállítják a karakter méretét).
-    /// </summary>
-    void SetSize(int width, int height);
-
-    /// <summary>
-    /// Lépteti a folyamatosan loopoló animációt az eltelt idő függvényében.
-    /// </summary>
-    void Update(TimeSpan deltaTime);
+    int ZIndex { get; }
 }
