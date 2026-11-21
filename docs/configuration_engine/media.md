@@ -14,7 +14,7 @@ Ez a dokumentum a [Konfigurációs motor](../components.md#konfigurációs-motor
 | [`Media/FrameDecoder.cs`](../../src/ConfigurationEngine/Media/FrameDecoder.cs) | Dekódolás eredeti méretben: GIF-egymásra rakás, sprite sheet vágása, képsorozat |
 | [`Media/FrameLoader.cs`](../../src/ConfigurationEngine/Media/FrameLoader.cs) | Az [`IFrameLoader`](../../src/ConfigurationEngine/Media/IFrameLoader.cs) megvalósítása: dekódolás és skálázás a karakter méretére |
 | [`Validation/MediaValidator.cs`](../../src/ConfigurationEngine/Validation/MediaValidator.cs) | Az [`IMediaValidator`](../../src/ConfigurationEngine/Validation/IMediaValidator.cs) megvalósítása: gyors (`Quick`) és teljes (`Full`) ellenőrzés |
-| [`assets/movement/`](../../src/ConfigurationEngine/assets/movement) | A szállított alapanimációk képei, mozgásállapotonként egy mappa |
+| [`assets/movement/`](../../assets/movement) | A szállított alapanimációk képei, mozgásállapotonként egy mappa |
 | [`tests/ConfigurationEngine.Tests/Media`](../../tests/ConfigurationEngine.Tests/Media) | A betöltő és az ellenőrző tesztjei |
 
 ```mermaid
@@ -77,7 +77,7 @@ A teljes ellenőrzés háttérszálon fut; a gyors ellenőrzés csak fájlrendsz
 
 ### Szállított képek
 
-A relatív útvonalak alapja az alkalmazás mappájában lévő `assets` mappa. A képek a [`ConfigurationEngine`](../../src/ConfigurationEngine) projekt `assets` mappájából a build kimenetbe másolódnak, és a projektre hivatkozó alkalmazások kimenetébe is átkerülnek.
+A relatív útvonalak alapja az alkalmazás mappájában lévő `assets` mappa. A képek a repó gyökerében lévő [`assets`](../../assets) mappában vannak, hogy könnyen megtalálhatók és cserélhetők legyenek. A build kimenetbe a [`ConfigurationEngine`](../../src/ConfigurationEngine) projekt másolja őket, és a projektre hivatkozó alkalmazások kimenetébe is átkerülnek.
 
 A [szállított alapanimációk](./schema.md#tárolás) mappái (`movement/idle`, `movement/walking`, `movement/falling`, `movement/dragging`) egyelőre ideiglenes, egyszerű figurák, állapotonként 4 képkocka 128 × 128 px-ben. A végleges grafika ugyanezekbe a mappákba kerül; a tesztek ellenőrzik, hogy a szállított képek átmennek a teljes ellenőrzésen.
 
