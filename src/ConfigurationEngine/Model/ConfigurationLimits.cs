@@ -8,6 +8,9 @@ using MonkeyStack.Core.Events;
 public readonly record struct IntRange(int Min, int Max)
 {
     public bool Contains(int value) => value >= Min && value <= Max;
+
+    /// <summary>Az intervallum legközelebbi értéke.</summary>
+    public int Clamp(int value) => Math.Clamp(value, Min, Max);
 }
 
 /// <summary>
