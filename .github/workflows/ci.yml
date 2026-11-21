@@ -4,6 +4,7 @@
 #   dotnet format MonkeyStack.slnx --verify-no-changes   # lint
 #   dotnet format MonkeyStack.slnx                       # a hibák automatikus javítása
 #   dotnet build MonkeyStack.slnx -c Release             # build
+#   dotnet test MonkeyStack.slnx -c Release              # tesztek
 #
 # Windows runner kell, mert a projektek WPF-et használnak (net10.0-windows).
 # A projektek célja és a CI SDK-ja is .NET 10 (a .slnx megoldásfájlhoz legalább 9.0.200-as SDK kell).
@@ -59,3 +60,6 @@ jobs:
 
       - name: Build
         run: dotnet build MonkeyStack.slnx -c Release --no-restore
+
+      - name: Test
+        run: dotnet test MonkeyStack.slnx -c Release --no-build

@@ -17,7 +17,7 @@ public interface IConfigurationStore
 
     /// <summary>
     /// Elmenti a teljes konfigurációt (a tárolt állapotot erre cseréli), majd kiváltja a <see cref="Changed"/> eseményt.
-    /// Az új elemek (Id = 0) azonosítót kapnak.
+    /// Az új elemek (Id ≤ 0) azonosítót kapnak; ez és a rájuk mutató hivatkozások a <paramref name="data"/> objektumaiban is frissülnek.
     /// </summary>
     /// <exception cref="ConfigurationValidationException">Ha a konfiguráció érvénytelen; ilyenkor semmi nem módosul.</exception>
     Task SaveAsync(ConfigurationData data, CancellationToken cancellationToken = default);

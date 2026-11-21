@@ -5,4 +5,7 @@
     <Project Path="src/MonkeyStack.Core/MonkeyStack.Core.csproj" />
     <Project Path="src/OsEventEngine/OsEventEngine.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ConfigurationEngine.Tests/ConfigurationEngine.Tests.csproj" />
+  </Folder>
 </Solution>
