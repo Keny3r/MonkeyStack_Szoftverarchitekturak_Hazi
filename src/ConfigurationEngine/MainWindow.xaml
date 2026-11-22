@@ -85,7 +85,7 @@
                 <tabs:RulesTabView DataContext="{Binding RulesTab}" />
             </TabItem>
             <TabItem Header="{Binding SourcesTabHeader}">
-                <TextBlock Margin="12" Foreground="Gray" Text="Animációs források – hamarosan." />
+                <tabs:SourcesTabView DataContext="{Binding SourcesTab}" />
             </TabItem>
             <TabItem Header="{Binding PollingTabHeader}">
                 <TextBlock Margin="12" Foreground="Gray" Text="Mintavételezés – hamarosan." />

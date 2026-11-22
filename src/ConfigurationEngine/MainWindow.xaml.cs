@@ -44,7 +44,7 @@ public partial class MainWindow : Window
     {
         Editor = editor.Editor;
         _ownedEditor = editor.Owned;
-        ViewModel = new ConfigurationWindowViewModel(Editor, new MessageBoxDialogs(this));
+        ViewModel = new ConfigurationWindowViewModel(Editor, new MessageBoxDialogs(this), new WpfMediaBrowser(this));
         InitializeComponent();
         DataContext = ViewModel;
 

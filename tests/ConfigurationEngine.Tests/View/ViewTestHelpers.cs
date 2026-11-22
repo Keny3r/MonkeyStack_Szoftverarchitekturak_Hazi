@@ -11,7 +11,8 @@ internal static class ViewTestHelpers
     public static IReadOnlyList<PreviewViewModel> TabPreviews(ConfigurationWindowViewModel viewModel) =>
     [
         .. viewModel.CharacterTab.MovementRows.Select(r => r.Preview),
-        .. viewModel.RulesTab.Rules.Where(r => viewModel.FindSource(r.Rule.AnimationSourceId) is not null).Select(r => r.Preview)
+        .. viewModel.RulesTab.Rules.Where(r => viewModel.FindSource(r.Rule.AnimationSourceId) is not null).Select(r => r.Preview),
+        .. viewModel.SourcesTab.Sources.Select(r => r.Preview)
     ];
 
     /// <summary>Megvárja, amíg minden megadott előnézet betöltődik.</summary>

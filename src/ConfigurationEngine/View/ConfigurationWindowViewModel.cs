@@ -71,7 +71,10 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
     private string? _errorMessage;
     private string? _statusMessage;
 
-    public ConfigurationWindowViewModel(IConfigurationEditor editor, IUserDialogs dialogs)
+    /// <param name="editor">A View homlokzata a motorhoz.</param>
+    /// <param name="dialogs">A megerősítő párbeszédablakok.</param>
+    /// <param name="browser">A tallózó párbeszédablakok a Források fülhöz; <c>null</c> esetén a tallózás nem érhető el.</param>
+    public ConfigurationWindowViewModel(IConfigurationEditor editor, IUserDialogs dialogs, IMediaBrowser? browser = null)
     {
         _editor = editor ?? throw new ArgumentNullException(nameof(editor));
         _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
@@ -84,7 +87,18 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
 
         CharacterTab = new Tabs.CharacterTabViewModel(this);
         RulesTab = new Tabs.RulesTabViewModel(this);
+        SourcesTab = new Tabs.SourcesTabViewModel(this, browser);
     }
+
+    /// <summary>A „Források” fül: az animációs források könyvtára.</summary>
+    public Tabs.SourcesTabViewModel SourcesTab { get; }
+
+    /// <summary>
+    /// Egy forrás teljes (<c>Full</c>) médiaellenőrzése a háttérben, tallózás vagy csere után
+    /// (<see cref="IConfigurationEditor.ValidateMediaAsync"/>); az eredményt a hívó adja át a <see cref="SetMediaErrors"/>-nek.
+    /// </summary>
+    public Task<IReadOnlyList<ValidationError>> ValidateMediaAsync(AnimationSource source) =>
+        _editor.ValidateMediaAsync(source);
 
     /// <summary>A „Karakter” fül: méret és mozgási animációk.</summary>
     public Tabs.CharacterTabViewModel CharacterTab { get; }

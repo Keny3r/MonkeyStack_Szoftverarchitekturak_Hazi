@@ -137,7 +137,7 @@ public sealed class PreviewViewModel : ObservableObject
             framesPerSecond.ToString("R", CultureInfo.InvariantCulture));
 
     /// <summary>A forrás pillanatképe: a betöltés alatt a felhasználó tovább szerkesztheti az eredetit.</summary>
-    private static AnimationSource Snapshot(AnimationSource source) => new()
+    internal static AnimationSource Snapshot(AnimationSource source) => new()
     {
         Id = source.Id,
         Name = source.Name,

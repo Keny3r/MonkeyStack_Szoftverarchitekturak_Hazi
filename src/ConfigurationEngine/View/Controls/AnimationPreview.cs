@@ -35,6 +35,8 @@ public sealed class AnimationPreview : Border
         typeof(AnimationPreview),
         new PropertyMetadata(48.0, (d, _) => ((AnimationPreview)d).UpdateLayoutMode()));
 
+    private const double FullStatusMaxWidth = 160;
+
     private static readonly Brush ErrorBrush = CreateFrozenBrush(Color.FromRgb(0xC4, 0x2B, 0x1C));
 
     private readonly Canvas _canvas = new() { ClipToBounds = true };
@@ -119,17 +121,18 @@ public sealed class AnimationPreview : Border
 
     private void UpdateStatus()
     {
+        // A listák kicsinyített soraiban az üzenet nem fér el: ott csak egy jel látszik, a teljes szöveg súgóként.
         var preview = Preview;
         if (preview is { HasError: true })
         {
-            _status.Text = preview.ErrorMessage;
+            _status.Text = IsCompact ? "⚠" : preview.ErrorMessage;
             _status.Foreground = ErrorBrush;
             _status.Visibility = Visibility.Visible;
             ToolTip = preview.ErrorMessage;
         }
         else if (preview is { IsLoading: true })
         {
-            _status.Text = "betöltés…";
+            _status.Text = IsCompact ? "…" : "betöltés…";
             _status.ClearValue(TextBlock.ForegroundProperty);
             _status.Visibility = Visibility.Visible;
             ToolTip = null;
@@ -153,13 +156,21 @@ public sealed class AnimationPreview : Border
             _root.Children.Insert(0, _viewbox);
             Width = CompactSize;
             Height = CompactSize;
+            ClipToBounds = true;
+            _status.ClearValue(MaxWidthProperty);
         }
         else
         {
             _root.Children.Insert(0, _canvas);
             ClearValue(WidthProperty);
             ClearValue(HeightProperty);
+            ClearValue(ClipToBoundsProperty);
+
+            // A hibaüzenet tördelődik, és nem tolja szét a részletek panelt.
+            _status.MaxWidth = FullStatusMaxWidth;
         }
+
+        UpdateStatus();
     }
 
     private void UpdateRendering()
