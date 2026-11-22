@@ -317,6 +317,12 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
         _appliedSize = (width, height);
     }
 
+    /// <summary>
+    /// Egy forrás elavult médiahibáinak törlése (pl. a sprite sheet rácsának módosításakor). A hívó ezután
+    /// <see cref="NotifyEdited"/>-del frissíti a hibák listáját.
+    /// </summary>
+    public void ClearMediaErrors(int sourceId) => _mediaErrors.Remove(sourceId);
+
     /// <summary>A tallózás után lefutott médiaellenőrzés eredménye egy forrásra.</summary>
     public void SetMediaErrors(int sourceId, IReadOnlyList<ValidationError> errors)
     {
@@ -454,6 +460,13 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
         switch (_dialogs.AskUnsavedChanges())
         {
             case CloseDecision.Save:
+                if (HasErrors)
+                {
+                    // Hibás állapot nem menthető: az ablak nyitva marad, és az első hibás mező kapja a fókuszt.
+                    GoToFirstError();
+                    return false;
+                }
+
                 return await SaveAsync();
             case CloseDecision.Discard:
                 RestoreSavedSize();

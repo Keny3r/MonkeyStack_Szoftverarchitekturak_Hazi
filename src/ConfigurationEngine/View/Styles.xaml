@@ -19,13 +19,5 @@
         </Style.Triggers>
     </Style>
 
-    <!-- A hibás mező piros kerete (a WPF alapértelmezett hibasablonja), a hibaüzenet súgóként is. -->
-    <Style TargetType="TextBox">
-        <Style.Triggers>
-            <Trigger Property="Validation.HasError" Value="True">
-                <Setter Property="ToolTip"
-                        Value="{Binding RelativeSource={RelativeSource Self}, Path=(Validation.Errors)[0].ErrorContent}" />
-            </Trigger>
-        </Style.Triggers>
-    </Style>
+    <!-- A hibás mező piros keretét a WPF alapértelmezett hibasablonja adja (INotifyDataErrorInfo). -->
 </ResourceDictionary>

@@ -93,7 +93,6 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -181,6 +180,8 @@
                         </StackPanel>
                         <TextBlock Style="{StaticResource FieldErrorText}" MaxWidth="160" Text="{Binding FramesPerSecond.ErrorText}" />
                     </StackPanel>
+                    <!-- Élő előnézet az „Animáció” sor végén: a részletek panelen teljes karakterméretben -->
+                    <controls:AnimationPreview VerticalAlignment="Top" Margin="16,0,0,6" Preview="{Binding Preview}" />
                 </StackPanel>
 
                 <!-- Réteg (ZIndex):  [20]  (a lista a mező elhagyásakor rendeződik újra) -->
@@ -213,10 +214,6 @@
                     <TextBlock Foreground="Gray" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,4"
                                Text="Azonos csoportból egyszerre csak a legnagyobb prioritású teljesülő szabály aktív. Üres csoport: nincs kizárás, a prioritás inaktív." />
                 </StackPanel>
-
-                <!-- Élő előnézet: a részletek panelen teljes karakterméretben -->
-                <controls:AnimationPreview Grid.Row="0" Grid.RowSpan="5" Grid.Column="2" VerticalAlignment="Top"
-                                           Margin="12,0,0,0" Preview="{Binding Preview}" />
             </Grid>
         </StackPanel>
     </Grid>

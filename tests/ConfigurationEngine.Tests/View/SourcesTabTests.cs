@@ -141,11 +141,19 @@ public sealed class SourcesTabTests : IDisposable
         Assert.Equal("A rácsból számolt képméret: 64 × 32 px", row.GridSizeText);
         Assert.False(row.HasAnyError);
 
+        // A rács módosítása után a médiaellenőrzés nem fut újra (csak tallózás / csere után és mentéskor):
+        // a rácseltérést addig az előnézet jelzi, mentéskor pedig a mezőknél jelenik meg.
         row.Columns.Text = "3";
-        await WaitUntilAsync(() => !row.IsChecking);
+        await WaitUntilAsync(() => !row.Preview.IsLoading);
 
         Assert.Equal(3, row.Source.FrameCount);
+        Assert.False(row.IsChecking);
+        Assert.False(row.HasAnyError);
+        Assert.True(row.Preview.HasError);
+
+        Assert.False(await _viewModel.SaveAsync());
         Assert.True(row.HasAnyError);
+        Assert.Equal(0, _editor.SaveCount);
     }
 
     [Fact]

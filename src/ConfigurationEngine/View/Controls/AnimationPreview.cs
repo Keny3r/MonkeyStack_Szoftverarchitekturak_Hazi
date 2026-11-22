@@ -36,6 +36,8 @@ public sealed class AnimationPreview : Border
         new PropertyMetadata(48.0, (d, _) => ((AnimationPreview)d).UpdateLayoutMode()));
 
     private const double FullStatusMaxWidth = 160;
+    private const double FullStatusFontSize = 11;
+    private const double CompactStatusFontSize = 8;
 
     private static readonly Brush ErrorBrush = CreateFrozenBrush(Color.FromRgb(0xC4, 0x2B, 0x1C));
 
@@ -121,7 +123,8 @@ public sealed class AnimationPreview : Border
 
     private void UpdateStatus()
     {
-        // A listák kicsinyített soraiban az üzenet nem fér el: ott csak egy jel látszik, a teljes szöveg súgóként.
+        // A listák kicsinyített soraiban a hibaüzenet nem fér el: ott csak egy jel látszik, a teljes szöveg súgóként
+        // (és a részletek panel teljes méretű előnézetén).
         var preview = Preview;
         if (preview is { HasError: true })
         {
@@ -132,7 +135,7 @@ public sealed class AnimationPreview : Border
         }
         else if (preview is { IsLoading: true })
         {
-            _status.Text = IsCompact ? "…" : "betöltés…";
+            _status.Text = "betöltés…";
             _status.ClearValue(TextBlock.ForegroundProperty);
             _status.Visibility = Visibility.Visible;
             ToolTip = null;
@@ -158,6 +161,9 @@ public sealed class AnimationPreview : Border
             Height = CompactSize;
             ClipToBounds = true;
             _status.ClearValue(MaxWidthProperty);
+
+            // Kisebb betű, hogy a „betöltés…” a kicsinyített dobozba is beférjen.
+            _status.FontSize = CompactStatusFontSize;
         }
         else
         {
@@ -168,6 +174,7 @@ public sealed class AnimationPreview : Border
 
             // A hibaüzenet tördelődik, és nem tolja szét a részletek panelt.
             _status.MaxWidth = FullStatusMaxWidth;
+            _status.FontSize = FullStatusFontSize;
         }
 
         UpdateStatus();

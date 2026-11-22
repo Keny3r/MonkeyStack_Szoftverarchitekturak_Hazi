@@ -206,8 +206,12 @@ public sealed class SourceRowViewModel : EditableItemViewModel
             _lastGridProduct = product;
         }
 
-        // A rács módosítása után a korábbi (pl. rácseltérés) médiahibák elavulnak: újra kell ellenőrizni.
-        StartMediaCheck();
+        // A teljes médiaellenőrzés tallózás / csere után és mentéskor fut (gui.md, "Mezőnkénti hibajelzés"). A rács
+        // módosítása után a korábbi eredmény (pl. rácseltérés) elavult, ezért törlődik; addig az előnézet mutatja,
+        // ha a forrás így nem tölthető be, mentéskor pedig az ellenőrzés újra lefut.
+        _checkVersion++;
+        IsChecking = false;
+        Owner.ClearMediaErrors(Source.Id);
     }
 
     private async Task CheckMediaAsync()

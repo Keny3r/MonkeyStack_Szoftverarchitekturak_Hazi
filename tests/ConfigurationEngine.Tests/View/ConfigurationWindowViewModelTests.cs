@@ -256,6 +256,20 @@ public sealed class ConfigurationWindowViewModelTests : IDisposable
         Assert.Equal(0, _editor.SaveCount);
     }
 
+    [Fact]
+    public async Task Close_ChoosingSaveWithErrors_KeepsWindowOpenAndGoesToTheError()
+    {
+        await _viewModel.LoadAsync();
+        Rule("Kis tűz").Threshold = 150;
+        _viewModel.NotifyEdited();
+        _dialogs.CloseDecision = CloseDecision.Save;
+
+        Assert.False(await _viewModel.ConfirmCloseAsync());
+
+        Assert.Equal(ConfigurationWindowViewModel.RulesTabIndex, _viewModel.SelectedTabIndex);
+        Assert.Equal(0, _editor.SaveCount);
+    }
+
     private BehaviorRule Rule(string name) => _viewModel.Data!.BehaviorRules.Single(r => r.Name == name);
 
     /// <summary>A minta szerkesztő, amelynek betöltése kérésre hibát dob (a mentés utáni újratöltés hibájához).</summary>
