@@ -82,7 +82,7 @@
                 <tabs:CharacterTabView DataContext="{Binding CharacterTab}" />
             </TabItem>
             <TabItem Header="{Binding RulesTabHeader}">
-                <TextBlock Margin="12" Foreground="Gray" Text="Viselkedési szabályok (rétegek) – hamarosan." />
+                <tabs:RulesTabView DataContext="{Binding RulesTab}" />
             </TabItem>
             <TabItem Header="{Binding SourcesTabHeader}">
                 <TextBlock Margin="12" Foreground="Gray" Text="Animációs források – hamarosan." />

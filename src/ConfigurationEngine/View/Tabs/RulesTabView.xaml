@@ -1,0 +1,223 @@
+<UserControl x:Class="ConfigurationEngine.View.Tabs.RulesTabView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:tabs="clr-namespace:ConfigurationEngine.View.Tabs"
+             xmlns:controls="clr-namespace:ConfigurationEngine.View.Controls"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=tabs:RulesTabViewModel}">
+    <UserControl.Resources>
+        <ResourceDictionary Source="/ConfigurationEngine;component/View/Styles.xaml" />
+    </UserControl.Resources>
+
+    <!-- A „Szabályok” fül: lista + részletek (gui.md, "3. Viselkedési szabályok (rétegek)") -->
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" MinHeight="120" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- [+ Új szabály]  [Törlés] -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+            <Button Content="+ Új szabály" Command="{Binding NewRuleCommand}" Padding="10,2" />
+            <Button Content="Törlés" Command="{Binding DeleteCommand}" Padding="10,2" Margin="8,0,0,0" />
+        </StackPanel>
+
+        <!-- Rétegek listája: csökkenő ZIndex, a legfelső réteg legelöl -->
+        <ListBox Grid.Row="1" ItemsSource="{Binding Rules}" SelectedItem="{Binding SelectedRule}"
+                 Grid.IsSharedSizeScope="True" HorizontalContentAlignment="Stretch"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemTemplate>
+                <DataTemplate DataType="{x:Type tabs:RuleRowViewModel}">
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" MinWidth="160" SharedSizeGroup="RuleName" />
+                            <ColumnDefinition Width="Auto" MinWidth="160" SharedSizeGroup="RuleCondition" />
+                            <ColumnDefinition Width="Auto" MinWidth="70" SharedSizeGroup="RuleZ" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Hibás mező esetén a sor hibát jelez -->
+                        <TextBlock Grid.Column="0" Text="⚠" Foreground="{StaticResource ErrorBrush}" VerticalAlignment="Center"
+                                   ToolTip="A szabály hibás."
+                                   Visibility="{Binding HasAnyError, Converter={StaticResource BoolToVisibility}}" />
+                        <!-- Kikapcsolt mintavételezés: a szabály így sosem teljesül -->
+                        <TextBlock Grid.Column="1" Text="⚠" Foreground="#B8860B" VerticalAlignment="Center"
+                                   ToolTip="A metrika mintavételezése ki van kapcsolva, így ez a szabály sosem teljesül."
+                                   Visibility="{Binding IsMetricPollingDisabled, Converter={StaticResource BoolToVisibility}}" />
+
+                        <CheckBox Grid.Column="2" IsChecked="{Binding IsEnabled}" VerticalAlignment="Center"
+                                  Margin="0,0,10,0" ToolTip="Engedélyezve" />
+                        <TextBlock Grid.Column="3" Text="{Binding DisplayName}" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" Margin="0,0,12,0" />
+                        <TextBlock Grid.Column="4" Text="{Binding ConditionText}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <TextBlock Grid.Column="5" Text="{Binding ZIndexText}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <controls:AnimationPreview Grid.Column="6" Preview="{Binding Preview}" IsCompact="True" CompactSize="40" />
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <!-- A kijelölt szabály részletei -->
+        <StackPanel Grid.Row="2" Margin="0,12,0,0" DataContext="{Binding SelectedRule}"
+                    Visibility="{Binding DataContext.HasSelection, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVisibility}}">
+
+            <!-- „── Nagy tűz ──” -->
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Separator Grid.Column="0" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding DisplayName}" FontWeight="SemiBold" Margin="6,0" />
+                <Separator Grid.Column="2" VerticalAlignment="Center" />
+            </Grid>
+
+            <!-- A szabály egészére vonatkozó hibák a részletek panel tetején -->
+            <ItemsControl ItemsSource="{Binding ItemErrors}" Margin="0,0,0,4">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Style="{StaticResource FieldErrorText}" Text="{Binding}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.Resources>
+                    <Style x:Key="Label" TargetType="TextBlock">
+                        <Setter Property="Margin" Value="0,3,12,0" />
+                        <Setter Property="VerticalAlignment" Value="Top" />
+                    </Style>
+                    <Style x:Key="Cell" TargetType="StackPanel">
+                        <Setter Property="Margin" Value="0,0,8,6" />
+                    </Style>
+                </Grid.Resources>
+
+                <!-- Név:  [Nagy tűz]   ☑ Engedélyezve -->
+                <TextBlock Grid.Row="0" Text="Név:" Style="{StaticResource Label}" />
+                <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal">
+                    <StackPanel Style="{StaticResource Cell}">
+                        <TextBox Width="200" Text="{Binding Name.Text, UpdateSourceTrigger=PropertyChanged}"
+                                 controls:FocusTarget.Property="Name" />
+                        <TextBlock Style="{StaticResource FieldErrorText}" MaxWidth="200" Text="{Binding Name.ErrorText}" />
+                    </StackPanel>
+                    <CheckBox Content="Engedélyezve" IsChecked="{Binding IsEnabled}" VerticalAlignment="Top"
+                              Margin="8,3,0,0" controls:FocusTarget.Property="IsEnabled" />
+                </StackPanel>
+
+                <!-- Feltétel:  [CPU ▾] [> ▾] [80] % -->
+                <TextBlock Grid.Row="1" Text="Feltétel:" Style="{StaticResource Label}" />
+                <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal">
+                    <StackPanel Style="{StaticResource Cell}">
+                        <ComboBox Width="130"
+                                  ItemsSource="{Binding DataContext.MetricOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                  DisplayMemberPath="Name" SelectedValuePath="Value" SelectedValue="{Binding Metric}"
+                                  controls:FocusTarget.Property="Metric" />
+                        <TextBlock Style="{StaticResource FieldErrorText}" MaxWidth="130" Text="{Binding FieldErrors[Metric]}" />
+                    </StackPanel>
+                    <StackPanel Style="{StaticResource Cell}">
+                        <ComboBox Width="80"
+                                  ItemsSource="{Binding DataContext.OperatorOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                  DisplayMemberPath="Symbol" SelectedValuePath="Value" SelectedValue="{Binding Operator}"
+                                  controls:FocusTarget.Property="Operator" />
+                        <TextBlock Style="{StaticResource FieldErrorText}" MaxWidth="80" Text="{Binding FieldErrors[Operator]}" />
+                    </StackPanel>
+                    <StackPanel Style="{StaticResource Cell}">
+                        <TextBox Width="64" Text="{Binding Threshold.Text, UpdateSourceTrigger=PropertyChanged}"
+                                 controls:FocusTarget.Property="Threshold" />
+                        <TextBlock Style="{StaticResource FieldErrorText}" MaxWidth="160" Text="{Binding Threshold.ErrorText}" />
+                    </StackPanel>
+                    <!-- Felső határ: csak „között” operátornál látható -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Top"
+                                Visibility="{Binding IsBetween, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="–" Margin="0,3,8,0" />
+                        <StackPanel Style="{StaticResource Cell}">
+                            <TextBox Width="64" Text="{Binding ThresholdUpper.Text, UpdateSourceTrigger=PropertyChanged}"
+                                     controls:FocusTarget.Property="ThresholdUpper" />
+                            <TextBlock Style="{StaticResource FieldErrorText}" MaxWidth="160" Text="{Binding ThresholdUpper.ErrorText}" />
+                        </StackPanel>
+                    </StackPanel>
+                    <TextBlock Text="{Binding UnitText}" Margin="0,3,8,0" VerticalAlignment="Top" />
+                    <TextBlock Text="éjfélen átnyúló intervallum" Foreground="Gray" FontStyle="Italic"
+                               Margin="0,3,0,0" VerticalAlignment="Top"
+                               Visibility="{Binding CrossesMidnight, Converter={StaticResource BoolToVisibility}}" />
+                </StackPanel>
+
+                <!-- Animáció:  [fire_big ▾]  [10] fps -->
+                <TextBlock Grid.Row="2" Text="Animáció:" Style="{StaticResource Label}" />
+                <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal">
+                    <StackPanel Style="{StaticResource Cell}">
+                        <ComboBox Width="200"
+                                  ItemsSource="{Binding DataContext.SourceOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                  DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding AnimationSourceId}"
+                                  controls:FocusTarget.Property="AnimationSourceId" />
+                        <TextBlock Style="{StaticResource FieldErrorText}" MaxWidth="200" Text="{Binding FieldErrors[AnimationSourceId]}" />
+                    </StackPanel>
+                    <StackPanel Style="{StaticResource Cell}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox Width="48" Text="{Binding FramesPerSecond.Text, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="{x:Static tabs:MovementRowViewModel.FramesPerSecondRangeText}"
+                                     controls:FocusTarget.Property="FramesPerSecond" />
+                            <TextBlock Text="fps" Margin="4,3,0,0" />
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource FieldErrorText}" MaxWidth="160" Text="{Binding FramesPerSecond.ErrorText}" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Réteg (ZIndex):  [20]  (a lista a mező elhagyásakor rendeződik újra) -->
+                <TextBlock Grid.Row="3" Text="Réteg (ZIndex):" Style="{StaticResource Label}" />
+                <StackPanel Grid.Row="3" Grid.Column="1" Style="{StaticResource Cell}" HorizontalAlignment="Left">
+                    <TextBox Width="48" Text="{Binding ZIndex.Text, UpdateSourceTrigger=PropertyChanged}"
+                             LostFocus="OnZIndexLostFocus" controls:FocusTarget.Property="ZIndex" />
+                    <TextBlock Style="{StaticResource FieldErrorText}" MaxWidth="200" Text="{Binding ZIndex.ErrorText}" />
+                </StackPanel>
+
+                <!-- Kizáró csoport:  [fire ▾]   Prioritás: [20] -->
+                <TextBlock Grid.Row="4" Text="Kizáró csoport:" Style="{StaticResource Label}" />
+                <StackPanel Grid.Row="4" Grid.Column="1">
+                    <StackPanel Orientation="Horizontal">
+                        <StackPanel Style="{StaticResource Cell}">
+                            <ComboBox Width="130" IsEditable="True" IsTextSearchEnabled="False"
+                                      ItemsSource="{Binding DataContext.GroupNames, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                      Text="{Binding ExclusiveGroup, UpdateSourceTrigger=PropertyChanged}"
+                                      controls:FocusTarget.Property="ExclusiveGroup" />
+                            <TextBlock Style="{StaticResource FieldErrorText}" MaxWidth="130" Text="{Binding FieldErrors[ExclusiveGroup]}" />
+                        </StackPanel>
+                        <TextBlock Text="Prioritás:" Margin="8,3,8,0" VerticalAlignment="Top" />
+                        <StackPanel Style="{StaticResource Cell}">
+                            <TextBox Width="48" Text="{Binding Priority.Text, UpdateSourceTrigger=PropertyChanged}"
+                                     IsEnabled="{Binding HasGroup}" controls:FocusTarget.Property="Priority" />
+                            <TextBlock Style="{StaticResource FieldErrorText}" MaxWidth="160" Text="{Binding Priority.ErrorText}" />
+                        </StackPanel>
+                    </StackPanel>
+                    <!-- A kizáró csoport és a prioritás jelentése súgószövegként -->
+                    <TextBlock Foreground="Gray" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,4"
+                               Text="Azonos csoportból egyszerre csak a legnagyobb prioritású teljesülő szabály aktív. Üres csoport: nincs kizárás, a prioritás inaktív." />
+                </StackPanel>
+
+                <!-- Élő előnézet: a részletek panelen teljes karakterméretben -->
+                <controls:AnimationPreview Grid.Row="0" Grid.RowSpan="5" Grid.Column="2" VerticalAlignment="Top"
+                                           Margin="12,0,0,0" Preview="{Binding Preview}" />
+            </Grid>
+        </StackPanel>
+    </Grid>
+</UserControl>

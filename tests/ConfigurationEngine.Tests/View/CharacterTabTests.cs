@@ -103,7 +103,7 @@ public sealed class CharacterTabTests : IDisposable
         await WaitForPreviewsAsync();
 
         Assert.Equal(24, idle.Preview.Animation!.FramesPerSecond);
-        Assert.Equal(Tab.MovementRows.Count, _editor.PreviewCount);
+        Assert.Equal(ViewTestHelpers.TabPreviews(_viewModel).Count, _editor.PreviewCount);
     }
 
     [Fact]
@@ -148,17 +148,8 @@ public sealed class CharacterTabTests : IDisposable
         Assert.Equal((100, 100), _editor.CharacterSize);
     }
 
-    private async Task WaitForPreviewsAsync()
-    {
-        for (var i = 0; i < 200 && !Loaded(); i++)
-        {
-            await Task.Delay(25);
-        }
-
-        Assert.True(Loaded());
-
-        bool Loaded() => Tab.MovementRows.All(r => r.Preview is { IsLoading: false, Animation: not null });
-    }
+    private Task WaitForPreviewsAsync() =>
+        ViewTestHelpers.WaitForPreviewsAsync(() => ViewTestHelpers.TabPreviews(_viewModel));
 
     private sealed class AcceptingDialogs : IUserDialogs
     {

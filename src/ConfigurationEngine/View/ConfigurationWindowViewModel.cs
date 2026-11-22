@@ -83,10 +83,14 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
         GoToFirstErrorCommand = new RelayCommand(GoToFirstError, () => HasErrors);
 
         CharacterTab = new Tabs.CharacterTabViewModel(this);
+        RulesTab = new Tabs.RulesTabViewModel(this);
     }
 
     /// <summary>A „Karakter” fül: méret és mozgási animációk.</summary>
     public Tabs.CharacterTabViewModel CharacterTab { get; }
+
+    /// <summary>A „Szabályok” fül: a viselkedési szabályok rétegként.</summary>
+    public Tabs.RulesTabViewModel RulesTab { get; }
 
     /// <summary>A szerkesztett másolat lecserélése után a fülek ebből építik újra a soraikat.</summary>
     public event EventHandler<DataReloadedEventArgs>? DataReloaded;

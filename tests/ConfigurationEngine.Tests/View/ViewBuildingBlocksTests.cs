@@ -199,13 +199,11 @@ public sealed class ViewBuildingBlocksTests : IDisposable
         Assert.True(condition());
     }
 
-    /// <summary>A tesztfül sorai mellett a „Karakter” fül mozgási animációinak előnézetei is a motorban vannak.</summary>
-    private int ExpectedPreviews => _tab.Rows.Count + _viewModel.CharacterTab.MovementRows.Count;
+    /// <summary>A tesztfül sorai mellett az ablak fülei is kérnek előnézeteket a motortól.</summary>
+    private int ExpectedPreviews => _tab.Rows.Count + ViewTestHelpers.TabPreviews(_viewModel).Count;
 
     private Task WaitForPreviewsAsync() =>
-        WaitUntilAsync(() =>
-            _tab.Rows.All(r => r.Preview is { IsLoading: false, Animation: not null })
-            && _viewModel.CharacterTab.MovementRows.All(r => r.Preview is { IsLoading: false, Animation: not null }));
+        ViewTestHelpers.WaitForPreviewsAsync(() => _tab.Rows.Select(r => r.Preview).Concat(ViewTestHelpers.TabPreviews(_viewModel)));
 
     private sealed class TestRulesTab(ConfigurationWindowViewModel owner) : TabViewModel(owner)
     {
