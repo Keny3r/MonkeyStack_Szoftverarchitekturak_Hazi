@@ -5,7 +5,7 @@ using ConfigurationEngine.Model;
 using MonkeyStack.Core.Animation;
 
 /// <summary>
-/// Egy sor élő előnézete (gui.md, "Előnézeti animációk"): a szerkesztett forráshoz és sebességhez tartozó előnézeti
+/// Egy sor élő előnézete (view.md, "Előnézeti animációk"): a szerkesztett forráshoz és sebességhez tartozó előnézeti
 /// animáció. Az animációt a motor készíti és lépteti; a View csak rajzolja, és nem módosítja. Ha a forrás vagy a
 /// sebesség változik, új előnézetet kér, a régit pedig egyenként eldobja (<c>ReleasePreviewAnimation</c>).
 /// </summary>
@@ -82,7 +82,7 @@ public sealed class PreviewViewModel : ObservableObject
             return;
         }
 
-        // Mentés után a régi sor ugyanilyen előnézete átvehető (gui.md, "Élettartam": mentés után megmaradnak).
+        // Mentés után a régi sor ugyanilyen előnézete átvehető (view.md, "Élettartam": mentés után megmaradnak).
         if (_manager.TakeKept(key) is { } kept)
         {
             Animation = kept;

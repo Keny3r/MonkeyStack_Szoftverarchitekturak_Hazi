@@ -4,7 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 
 /// <summary>
-/// A „Szabályok” fül nézete (gui.md, "3. Viselkedési szabályok (rétegek)"); az adatkörnyezete egy
+/// A „Szabályok” fül nézete (view.md, "3. Viselkedési szabályok (rétegek)"); az adatkörnyezete egy
 /// <see cref="RulesTabViewModel"/>.
 /// </summary>
 public partial class RulesTabView : UserControl
@@ -14,6 +14,6 @@ public partial class RulesTabView : UserControl
         InitializeComponent();
     }
 
-    /// <summary>A lista a <c>ZIndex</c> mező elhagyásakor rendeződik újra, nem gépelés közben (gui.md, "Rétegek listája").</summary>
+    /// <summary>A lista a <c>ZIndex</c> mező elhagyásakor rendeződik újra, nem gépelés közben (view.md, "Rétegek listája").</summary>
     private void OnZIndexLostFocus(object sender, RoutedEventArgs e) => (DataContext as RulesTabViewModel)?.Resort();
 }

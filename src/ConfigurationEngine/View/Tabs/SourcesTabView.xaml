@@ -11,7 +11,7 @@
         <ResourceDictionary Source="/ConfigurationEngine;component/View/Styles.xaml" />
     </UserControl.Resources>
 
-    <!-- A „Források” fül: lista + részletek (gui.md, "4. Animációs források") -->
+    <!-- A „Források” fül: lista + részletek (view.md, "4. Animációs források") -->
     <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -47,7 +47,7 @@
                             </DataTemplate>
                         </GridViewColumn.CellTemplate>
                     </GridViewColumn>
-                    <GridViewColumn Header="Név" Width="180">
+                    <GridViewColumn Header="Név" Width="170">
                         <GridViewColumn.CellTemplate>
                             <DataTemplate DataType="{x:Type tabs:SourceRowViewModel}">
                                 <StackPanel Orientation="Horizontal">
@@ -60,21 +60,21 @@
                         </GridViewColumn.CellTemplate>
                     </GridViewColumn>
                     <GridViewColumn Header="Típus" Width="100" DisplayMemberBinding="{Binding TypeText}" />
-                    <GridViewColumn Header="Útvonal" Width="200">
+                    <GridViewColumn Header="Útvonal" Width="180">
                         <GridViewColumn.CellTemplate>
                             <DataTemplate DataType="{x:Type tabs:SourceRowViewModel}">
                                 <TextBlock Text="{Binding PathText}" ToolTip="{Binding FullPath}" TextTrimming="CharacterEllipsis" />
                             </DataTemplate>
                         </GridViewColumn.CellTemplate>
                     </GridViewColumn>
-                    <GridViewColumn Header="Használja" Width="170">
+                    <GridViewColumn Header="Használja" Width="150">
                         <GridViewColumn.CellTemplate>
                             <DataTemplate DataType="{x:Type tabs:SourceRowViewModel}">
                                 <TextBlock Text="{Binding UsedByText}" ToolTip="{Binding UsedByText}" TextTrimming="CharacterEllipsis" />
                             </DataTemplate>
                         </GridViewColumn.CellTemplate>
                     </GridViewColumn>
-                    <GridViewColumn Header="Előnézet" Width="70">
+                    <GridViewColumn Header="Előnézet" Width="170">
                         <GridViewColumn.CellTemplate>
                             <DataTemplate DataType="{x:Type tabs:SourceRowViewModel}">
                                 <controls:AnimationPreview Preview="{Binding Preview}" IsCompact="True" CompactSize="40" />
@@ -152,7 +152,7 @@
                         <Button DockPanel.Dock="Right" Content="Csere…" Padding="10,1" Margin="8,0,0,0" VerticalAlignment="Top"
                                 Command="{Binding DataContext.ReplaceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                 controls:FocusTarget.Property="Path" />
-                        <TextBlock Text="{Binding FullPath}" ToolTip="{Binding FullPath}" TextTrimming="CharacterEllipsis"
+                        <TextBlock Text="{Binding DetailsPathText}" ToolTip="{Binding FullPath}" TextTrimming="CharacterEllipsis"
                                    Margin="0,3,0,0" VerticalAlignment="Top" />
                     </DockPanel>
                     <TextBlock Style="{StaticResource FieldErrorText}" Text="{Binding FieldErrors[Path]}" />

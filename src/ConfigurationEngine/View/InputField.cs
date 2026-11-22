@@ -5,7 +5,7 @@ using System.ComponentModel;
 using System.Globalization;
 
 /// <summary>
-/// Egy szöveges beviteli mező (pl. számmező) a hozzá tartozó hibákkal (gui.md, "Mezőnkénti hibajelzés").
+/// Egy szöveges beviteli mező (pl. számmező) a hozzá tartozó hibákkal (view.md, "Mezőnkénti hibajelzés").
 /// A beírt szöveg csak akkor kerül a szerkesztett másolatba, ha átalakítható; különben beviteli hiba keletkezik,
 /// és a másolatban az utolsó érvényes érték marad. A hibákat <see cref="INotifyDataErrorInfo"/>-val adja a WPF
 /// kötésnek (piros keret), és <see cref="ErrorText"/>-ként a mező alatti felirathoz.

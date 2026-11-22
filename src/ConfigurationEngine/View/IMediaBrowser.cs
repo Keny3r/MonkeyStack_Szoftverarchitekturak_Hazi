@@ -1,7 +1,7 @@
 namespace ConfigurationEngine.View;
 
 /// <summary>
-/// A tallózó párbeszédablakok (gui.md, "Tallózás"): fájl (<c>OpenFileDialog</c>) és mappa (<c>OpenFolderDialog</c>).
+/// A tallózó párbeszédablakok (view.md, "Tallózás"): fájl (<c>OpenFileDialog</c>) és mappa (<c>OpenFolderDialog</c>).
 /// Külön interfész, hogy a Források fül nézetmodellje párbeszédablakok nélkül, egységtesztben is futtatható legyen.
 /// </summary>
 public interface IMediaBrowser

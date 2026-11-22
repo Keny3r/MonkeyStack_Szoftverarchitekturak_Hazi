@@ -4,7 +4,7 @@ using System.Collections.ObjectModel;
 using ConfigurationEngine.Model;
 
 /// <summary>
-/// A „Szabályok” fül (gui.md, "3. Viselkedési szabályok (rétegek)"): felül a rétegek listája, alatta a kijelölt
+/// A „Szabályok” fül (view.md, "3. Viselkedési szabályok (rétegek)"): felül a rétegek listája, alatta a kijelölt
 /// szabály részletei. A lista csökkenő <c>ZIndex</c> szerint rendezett (a legfelső réteg áll legelöl); azonos
 /// <c>ZIndex</c>-nél a kirajzolási sorrend fordítottja dönt, így mindig a felül rajzolt réteg áll elöl.
 /// A betöltéskor kihagyott szabályok nem itt, hanem a figyelmeztető sáv Részletek paneljén jelennek meg.

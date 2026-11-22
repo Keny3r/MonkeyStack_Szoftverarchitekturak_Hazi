@@ -9,7 +9,7 @@ using ConfigurationEngine.View.Tabs;
 using MonkeyStack.Core.Character;
 
 /// <summary>
-/// A „Források” fül (gui.md, "4. Animációs források") a minta konfigurációval: a négy szállított forrást a
+/// A „Források” fül (view.md, "4. Animációs források") a minta konfigurációval: a négy szállított forrást a
 /// mozgásállapotok és a szabályok is használják.
 /// </summary>
 public sealed class SourcesTabTests : IDisposable
@@ -103,6 +103,25 @@ public sealed class SourcesTabTests : IDisposable
         Tab.BrowseFileCommand.Execute(null);
         Assert.Equal(AnimationSourceType.SpriteSheet, Tab.SelectedSource!.Source.SourceType);
         Assert.True(Tab.SelectedSource.IsSpriteSheet);
+    }
+
+    [Fact]
+    public async Task Path_IsShortenedInTheListAndInTheDetails()
+    {
+        await _viewModel.LoadAsync();
+        var root = Path.GetPathRoot(_directory)!.TrimEnd('\\');
+        _browser.File = Path.Combine(_directory, "fire_big.gif");
+        Tab.BrowseFileCommand.Execute(null);
+        var file = Tab.SelectedSource!;
+        _browser.Folder = Path.Combine(_directory, "pyjama");
+        Tab.BrowseFolderCommand.Execute(null);
+        var folder = Tab.SelectedSource!;
+
+        Assert.Equal("…\\fire_big.gif", file.PathText);
+        Assert.Equal($"{root}\\…\\fire_big.gif", file.DetailsPathText);
+        Assert.Equal("…\\pyjama\\", folder.PathText);
+        Assert.Equal($"{root}\\…\\pyjama\\", folder.DetailsPathText);
+        Assert.Equal("movement/idle", Tab.Sources[0].DetailsPathText);
     }
 
     [Fact]

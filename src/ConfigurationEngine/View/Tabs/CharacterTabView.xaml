@@ -11,7 +11,7 @@
         <ResourceDictionary Source="/ConfigurationEngine;component/View/Styles.xaml" />
     </UserControl.Resources>
 
-    <!-- A „Karakter” fül (gui.md, "1. Karakter mérete" és "2. Mozgási animációk") -->
+    <!-- A „Karakter” fül (view.md, "1. Karakter mérete" és "2. Mozgási animációk") -->
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="12">
 
@@ -35,12 +35,10 @@
                 <TextBlock Grid.Column="0" Text="Méret:" VerticalAlignment="Center" Margin="0,0,8,0" />
                 <TextBox Grid.Column="1" Width="56" VerticalAlignment="Center"
                          Text="{Binding Width.Text, UpdateSourceTrigger=PropertyChanged}"
-                         ToolTip="{x:Static tabs:CharacterSizeViewModel.RangeText}"
                          controls:FocusTarget.Property="CharacterWidth" />
                 <TextBlock Grid.Column="2" Text="×" VerticalAlignment="Center" Margin="6,0" />
                 <TextBox Grid.Column="3" Width="56" VerticalAlignment="Center"
                          Text="{Binding Height.Text, UpdateSourceTrigger=PropertyChanged}"
-                         ToolTip="{x:Static tabs:CharacterSizeViewModel.RangeText}"
                          controls:FocusTarget.Property="CharacterHeight" />
                 <TextBlock Grid.Column="4" Text="px" VerticalAlignment="Center" Margin="6,0,0,0" />
 
@@ -109,7 +107,6 @@
                                 <StackPanel Orientation="Horizontal">
                                     <TextBox Width="48"
                                              Text="{Binding FramesPerSecond.Text, UpdateSourceTrigger=PropertyChanged}"
-                                             ToolTip="{x:Static tabs:MovementRowViewModel.FramesPerSecondRangeText}"
                                              controls:FocusTarget.Property="FramesPerSecond" />
                                     <TextBlock Text="fps" VerticalAlignment="Center" Margin="4,0,0,0" />
                                 </StackPanel>

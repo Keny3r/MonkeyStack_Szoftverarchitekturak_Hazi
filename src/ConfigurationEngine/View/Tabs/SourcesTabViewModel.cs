@@ -5,7 +5,7 @@ using System.IO;
 using ConfigurationEngine.Model;
 
 /// <summary>
-/// A „Források” fül (gui.md, "4. Animációs források"): az animációs források könyvtára lista + részletek elrendezésben.
+/// A „Források” fül (view.md, "4. Animációs források"): az animációs források könyvtára lista + részletek elrendezésben.
 /// Tallózással új forrás vehető fel; a használt forrás nem törölhető.
 /// </summary>
 public sealed class SourcesTabViewModel : TabViewModel

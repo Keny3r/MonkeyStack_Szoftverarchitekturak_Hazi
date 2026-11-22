@@ -5,7 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Threading;
 
 /// <summary>
-/// Az „N hiba” feliratra kattintáskor a hibás mezőre viszi a fókuszt (gui.md, "Mezőnkénti hibajelzés").
+/// Az „N hiba” feliratra kattintáskor a hibás mezőre viszi a fókuszt (view.md, "Mezőnkénti hibajelzés").
 /// A vezérlőn megadott mezőnév (<c>controls:FocusTarget.Property="Threshold"</c>) a modell mezőjének neve; ha a vezérlő
 /// <see cref="EditableItemViewModel"/> adatkörnyezete ezt a mezőt kéri (<see cref="EditableItemViewModel.PendingFocus"/>),
 /// a vezérlő megkapja a fókuszt. Ha a vezérlő még nem látható (pl. most váltott a fül), a betöltése után kapja meg.

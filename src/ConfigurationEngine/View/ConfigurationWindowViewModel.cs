@@ -7,14 +7,14 @@ using ConfigurationEngine.Storage;
 using ConfigurationEngine.Validation;
 
 /// <summary>
-/// A konfigurációs ablak fő nézetmodellje (docs/configuration_engine/gui.md): betölti a szerkesztett másolatot,
+/// A konfigurációs ablak fő nézetmodellje (docs/configuration_engine/view.md): betölti a szerkesztett másolatot,
 /// mutatja a kihagyott elemeket, összesíti a hibákat, és végrehajtja a Mentést és az Elvetést.
 /// A Konfigurációs motort csak az <see cref="IConfigurationEditor"/> homlokzaton (Wrapper Facade) keresztül éri el.
 /// A UI szálon fut; a lassú műveleteket a homlokzat a háttérben végzi (Half Sync / Half Async).
 /// </summary>
 public sealed class ConfigurationWindowViewModel : ObservableObject
 {
-    /// <summary>A fülek indexe a <c>TabControl</c>-ban, a gui.md "Áttekintés" táblázatának sorrendjében.</summary>
+    /// <summary>A fülek indexe a <c>TabControl</c>-ban, a view.md "Áttekintés" táblázatának sorrendjében.</summary>
     public const int CharacterTabIndex = 0;
     public const int RulesTabIndex = 1;
     public const int SourcesTabIndex = 2;
@@ -49,7 +49,7 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
     private readonly Dictionary<int, IReadOnlyList<ValidationError>> _mediaErrors = [];
 
     /// <summary>
-    /// A beviteli hibák (gui.md, "Mezőnkénti hibajelzés"): a mező szövege nem alakítható át, ezért nem került
+    /// A beviteli hibák (view.md, "Mezőnkénti hibajelzés"): a mező szövege nem alakítható át, ezért nem került
     /// a szerkesztett másolatba. Ugyanúgy hibának számítanak, mint a validátor hibái.
     /// </summary>
     private readonly Dictionary<(ConfigurationItemKind Kind, string ItemKey, string PropertyName), ValidationError> _inputErrors = [];
@@ -58,7 +58,7 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
     private string _savedSnapshot = string.Empty;
     private (int Width, int Height) _savedSize;
 
-    /// <summary>A szolgáltatáson azonnal beállított, még nem mentett méret (gui.md, "Karakter mérete").</summary>
+    /// <summary>A szolgáltatáson azonnal beállított, még nem mentett méret (view.md, "Karakter mérete").</summary>
     private (int Width, int Height)? _appliedSize;
 
     private ValidationResult _validation = ValidationResult.Success;
@@ -127,7 +127,7 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
     /// <summary>A szerkesztett másolat; <c>null</c>, amíg nincs betöltve, vagy ha a betöltés nem sikerült.</summary>
     public ConfigurationData? Data => _data;
 
-    /// <summary>Az ablak előnézeteinek élettartama (gui.md, "Élettartam").</summary>
+    /// <summary>Az ablak előnézeteinek élettartama (view.md, "Élettartam").</summary>
     public PreviewManager Previews { get; }
 
     /// <summary>
@@ -152,7 +152,7 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
     public bool HasWarning => HasDroppedItems || DatabaseWasReset || ErrorMessage is not null;
 
     /// <summary>
-    /// A figyelmeztető sáv szövege (gui.md, "Kihagyott elemek"): „N elem kimaradt betöltéskor”; a mentéskori
+    /// A figyelmeztető sáv szövege (view.md, "Kihagyott elemek"): „N elem kimaradt betöltéskor”; a mentéskori
     /// törlést a Részletek panel és a mentés előtti megerősítés jelzi.
     /// </summary>
     public string WarningText
@@ -201,7 +201,7 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
 
     public bool HasErrors => ErrorCount > 0;
 
-    /// <summary>A Mentés gomb melletti, kattintható felirat (gui.md, "Mezőnkénti hibajelzés").</summary>
+    /// <summary>A Mentés gomb melletti, kattintható felirat (view.md, "Mezőnkénti hibajelzés").</summary>
     public string ErrorCountText => $"{ErrorCount} hiba";
 
     public string CharacterTabHeader => TabHeader("Karakter", CharacterTabIndex);
@@ -220,11 +220,11 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
     /// <summary>Van betöltött másolat, és nem fut mentés vagy betöltés.</summary>
     public bool IsEditable => Data is not null && !IsBusy;
 
-    /// <summary>A Mentés (és a Ctrl+S) akkor aktív, ha a másolat eltér a mentett állapottól, és nincs hiba (gui.md, "Mentés").</summary>
+    /// <summary>A Mentés (és a Ctrl+S) akkor aktív, ha a másolat eltér a mentett állapottól, és nincs hiba (view.md, "Mentés").</summary>
     public bool CanSave => IsEditable && IsDirty && !HasErrors;
 
     /// <summary>
-    /// Az alsó sáv bal oldali felirata (gui.md, "Mentés"): „Mentés…” a mentés idejére, „Mentve” utána,
+    /// Az alsó sáv bal oldali felirata (view.md, "Mentés"): „Mentés…” a mentés idejére, „Mentve” utána,
     /// a következő módosításig.
     /// </summary>
     public string StatusText => _statusMessage ?? string.Empty;
@@ -303,7 +303,7 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
 
     /// <summary>
     /// A karakter méretét azonnal érvényesíti a szolgáltatáson (a futó karakteren és az előnézeteken is),
-    /// de tárolni csak a Mentés fogja (gui.md, "Karakter mérete"). Ha a méret nem változott, a szolgáltatást nem hívja,
+    /// de tárolni csak a Mentés fogja (view.md, "Karakter mérete"). Ha a méret nem változott, a szolgáltatást nem hívja,
     /// így a <c>ConfigurationChanged</c> sem váltódik ki feleslegesen.
     /// </summary>
     public void ApplyCharacterSize(int width, int height)
@@ -339,7 +339,7 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Mentés (gui.md, "Mentés"): megerősítés kihagyott elemek esetén, zárolás, teljes ellenőrzés, tárolás, majd a
+    /// Mentés (view.md, "Mentés"): megerősítés kihagyott elemek esetén, zárolás, teljes ellenőrzés, tárolás, majd a
     /// mentett állapot újratöltése. Igaz, ha a mentés sikerült.
     /// </summary>
     public async Task<bool> SaveAsync()
@@ -409,7 +409,7 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 // A mentés sikerült: a szerkesztett másolat (a visszaírt azonosítókkal) a mentett állapot,
-                // a kihagyott elemek pedig törlődtek (gui.md, "Mentés" 6. lépés).
+                // a kihagyott elemek pedig törlődtek (view.md, "Mentés" 6. lépés).
                 MarkSaved(data);
                 DroppedItems.Clear();
                 _errorMessage = $"A mentés sikerült, de a mentett állapot újratöltése nem: {ex.Message}";
@@ -517,7 +517,7 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(Data));
         OnPropertyChanged(nameof(IsDetailsOpen));
 
-        // Mentés után az előnézetek megmaradnak: az újraépített sorok átveszik őket (gui.md, "Élettartam").
+        // Mentés után az előnézetek megmaradnak: az újraépített sorok átveszik őket (view.md, "Élettartam").
         var args = new DataReloadedEventArgs(reason);
         if (reason == DataReloadReason.Saved)
         {

@@ -11,7 +11,7 @@
         <ResourceDictionary Source="/ConfigurationEngine;component/View/Styles.xaml" />
     </UserControl.Resources>
 
-    <!-- A „Mintavételezés” fül (gui.md, "5. Mintavételezés") -->
+    <!-- A „Mintavételezés” fül (view.md, "5. Mintavételezés") -->
     <DockPanel Margin="12">
         <!-- [Alapértékek visszaállítása] -->
         <Button DockPanel.Dock="Bottom" HorizontalAlignment="Right" Margin="0,8,0,0" Padding="10,2"
@@ -66,7 +66,6 @@
                                         <!-- Kikapcsolt metrikánál inaktív, de az értéke megmarad -->
                                         <TextBox Width="64" Text="{Binding IntervalMs.Text, UpdateSourceTrigger=PropertyChanged}"
                                                  IsEnabled="{Binding IsEnabled}"
-                                                 ToolTip="{x:Static tabs:PollingRowViewModel.IntervalRangeText}"
                                                  controls:FocusTarget.Property="IntervalMs" />
                                         <TextBlock Text="ms" Margin="4,3,8,0" />
                                         <TextBlock Text="{Binding ReadableInterval}" Foreground="Gray" Margin="0,3,0,0" />

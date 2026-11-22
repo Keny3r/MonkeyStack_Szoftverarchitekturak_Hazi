@@ -2,7 +2,7 @@ namespace ConfigurationEngine.View;
 
 /// <summary>
 /// Miért cserélődött le a szerkesztett másolat. A fülek ebből döntik el, mi legyen az előnézetekkel
-/// (gui.md, "Élettartam"): mentés után megmaradnak, Elvetéskor a View előbb mindet eldobja.
+/// (view.md, "Élettartam"): mentés után megmaradnak, Elvetéskor a View előbb mindet eldobja.
 /// </summary>
 public enum DataReloadReason
 {

@@ -7,7 +7,7 @@ using ConfigurationEngine.View;
 using ConfigurationEngine.View.Fakes;
 
 /// <summary>
-/// A fülek közös építőelemei (gui.md, "Mezőnkénti hibajelzés" és "Élő előnézet"): mezőnkénti hibák, beviteli hibák,
+/// A fülek közös építőelemei (view.md, "Mezőnkénti hibajelzés" és "Élő előnézet"): mezőnkénti hibák, beviteli hibák,
 /// ugrás a hibás mezőre, a forrásválasztó lista és az előnézetek élettartama. Egy egyszerű, csak a teszthez készült
 /// szabályfülön keresztül.
 /// </summary>

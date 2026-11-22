@@ -1,11 +1,10 @@
 namespace ConfigurationEngine.View.Tabs;
 
-using System.Globalization;
 using ConfigurationEngine.Model;
 using ConfigurationEngine.Validation;
 
 /// <summary>
-/// A karakter mérete a „Karakter” fül tetején (gui.md, "1. Karakter mérete"): <c>CharacterWidth</c> és
+/// A karakter mérete a „Karakter” fül tetején (view.md, "1. Karakter mérete"): <c>CharacterWidth</c> és
 /// <c>CharacterHeight</c> számmező, px. Érvényes érték beírásakor a méret azonnal érvényesül a szolgáltatáson
 /// (a futó karakteren és az előnézeteken is), de csak Mentéskor tárolódik. Érvénytelen érték (üres, nem szám,
 /// tartományon kívüli) nem kerül a szolgáltatásba: a mező hibát jelez, és az utolsó érvényes méret marad érvényben.
@@ -30,11 +29,6 @@ public sealed class CharacterSizeViewModel : EditableItemViewModel
     public InputField Width { get; }
 
     public InputField Height { get; }
-
-    /// <summary>Az érvényes tartomány a <see cref="ConfigurationLimits.CharacterSizePx"/>-ből, súgószövegnek.</summary>
-    public static string RangeText => string.Create(
-        CultureInfo.CurrentCulture,
-        $"{ConfigurationLimits.CharacterSizePx.Min}–{ConfigurationLimits.CharacterSizePx.Max} px");
 
     protected override void OnFieldCommitted(string propertyName)
     {

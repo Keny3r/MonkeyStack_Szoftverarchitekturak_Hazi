@@ -4,7 +4,7 @@ using System.Collections.ObjectModel;
 using MonkeyStack.Core.Events;
 
 /// <summary>
-/// A „Mintavételezés” fül (gui.md, "5. Mintavételezés"): minden <see cref="Metric"/> értékhez pontosan egy, fix sor;
+/// A „Mintavételezés” fül (view.md, "5. Mintavételezés"): minden <see cref="Metric"/> értékhez pontosan egy, fix sor;
 /// sort hozzáadni vagy törölni nem lehet. A módosítások Mentéskor tárolódnak; az OS esemény értesítő motor ezután a
 /// <c>PollingSettingsChanged</c> eseményből értesül róluk, a View vele közvetlenül nem kommunikál.
 /// </summary>

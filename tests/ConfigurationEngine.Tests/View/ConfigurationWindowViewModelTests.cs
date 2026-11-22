@@ -9,7 +9,7 @@ using ConfigurationEngine.View.Fakes;
 using MonkeyStack.Core.Animation;
 
 /// <summary>
-/// A konfigurációs ablak fő nézetmodellje (gui.md, "Hibajelzés" és "Mentés") a memóriában tároló minta szerkesztővel.
+/// A konfigurációs ablak fő nézetmodellje (view.md, "Hibajelzés" és "Mentés") a memóriában tároló minta szerkesztővel.
 /// </summary>
 public sealed class ConfigurationWindowViewModelTests : IDisposable
 {

@@ -6,7 +6,7 @@ using ConfigurationEngine.Model;
 using ConfigurationEngine.Validation;
 
 /// <summary>
-/// Egy animációs forrás a „Források” fülön (gui.md, "4. Animációs források"): a lista sora és a részletek panel mezői.
+/// Egy animációs forrás a „Források” fülön (view.md, "4. Animációs források"): a lista sora és a részletek panel mezői.
 /// Itt csak a forrás betöltési módja állítható; a sebesség és a réteg a felhasználás helyén van. A típust a tallózás
 /// határozza meg, ezért a részletekben csak felirat.
 /// </summary>
@@ -89,23 +89,14 @@ public sealed class SourceRowViewModel : EditableItemViewModel
     /// <summary>A név a listában és a részletek fejlécében.</summary>
     public string DisplayName => Source.Name;
 
-    /// <summary>A teljes útvonal (a részletek panelen és súgóként).</summary>
+    /// <summary>A teljes útvonal (súgóként).</summary>
     public string FullPath => Source.Path;
 
     /// <summary>Az útvonal rövid alakja a listában, pl. <c>…\fire_big.gif</c> vagy <c>…\pyjama\</c>.</summary>
-    public string PathText
-    {
-        get
-        {
-            if (!Path.IsPathRooted(Source.Path))
-            {
-                return Source.Path;
-            }
+    public string PathText => ShortPath(includeRoot: false);
 
-            var name = Path.GetFileName(Source.Path.TrimEnd('\\', '/'));
-            return IsFolder ? $"…\\{name}\\" : $"…\\{name}";
-        }
-    }
+    /// <summary>Az útvonal a részletek panelen, a meghajtóval, pl. <c>C:\…\fire_big.gif</c> (view.md, "4. Animációs források").</summary>
+    public string DetailsPathText => ShortPath(includeRoot: true);
 
     /// <summary>A forrást használó mozgásállapotok és szabályok a szerkesztett másolat alapján.</summary>
     public IReadOnlyList<string> UsedBy
@@ -153,6 +144,7 @@ public sealed class SourceRowViewModel : EditableItemViewModel
     {
         OnPropertyChanged(nameof(DisplayName));
         OnPropertyChanged(nameof(PathText));
+        OnPropertyChanged(nameof(DetailsPathText));
         OnPropertyChanged(nameof(FullPath));
         OnPropertyChanged(nameof(UsedBy));
         OnPropertyChanged(nameof(UsedByText));
@@ -172,7 +164,7 @@ public sealed class SourceRowViewModel : EditableItemViewModel
     }
 
     /// <summary>
-    /// A teljes (<c>Full</c>) médiaellenőrzés a háttérben (gui.md, "Tallózás"); közben a sor „ellenőrzés…” állapotú,
+    /// A teljes (<c>Full</c>) médiaellenőrzés a háttérben (view.md, "Tallózás"); közben a sor „ellenőrzés…” állapotú,
     /// a felület nem blokkolódik. Ha közben újabb ellenőrzés indul, a régebbi eredménye elvész.
     /// </summary>
     public void StartMediaCheck() => _ = CheckMediaAsync();
@@ -206,12 +198,36 @@ public sealed class SourceRowViewModel : EditableItemViewModel
             _lastGridProduct = product;
         }
 
-        // A teljes médiaellenőrzés tallózás / csere után és mentéskor fut (gui.md, "Mezőnkénti hibajelzés"). A rács
+        // A teljes médiaellenőrzés tallózás / csere után és mentéskor fut (view.md, "Mezőnkénti hibajelzés"). A rács
         // módosítása után a korábbi eredmény (pl. rácseltérés) elavult, ezért törlődik; addig az előnézet mutatja,
         // ha a forrás így nem tölthető be, mentéskor pedig az ellenőrzés újra lefut.
         _checkVersion++;
         IsChecking = false;
         Owner.ClearMediaErrors(Source.Id);
+    }
+
+    /// <summary>
+    /// Az útvonal rövid alakja: a fájl vagy mappa neve <c>…\</c> után (mappánál záró <c>\</c>-sel), a részletek panelen
+    /// a meghajtóval együtt. A relatív (szállított) útvonal és a közvetlenül a meghajtón lévő fájl változatlan marad.
+    /// </summary>
+    private string ShortPath(bool includeRoot)
+    {
+        var path = Source.Path;
+        if (!Path.IsPathRooted(path))
+        {
+            return path;
+        }
+
+        var trimmed = path.TrimEnd('\\', '/');
+        var root = Path.GetPathRoot(trimmed) ?? string.Empty;
+        var name = Path.GetFileName(trimmed);
+        if (string.IsNullOrEmpty(name) || string.Equals(Path.GetDirectoryName(trimmed), root, StringComparison.OrdinalIgnoreCase))
+        {
+            return path;
+        }
+
+        var suffix = IsFolder ? "\\" : string.Empty;
+        return includeRoot ? $"{root.TrimEnd('\\', '/')}\\…\\{name}{suffix}" : $"…\\{name}{suffix}";
     }
 
     private async Task CheckMediaAsync()
@@ -234,7 +250,8 @@ public sealed class SourceRowViewModel : EditableItemViewModel
             return;
         }
 
-        IsChecking = false;
+        // Az „ellenőrzés…” állapot csak akkor ér véget, amikor az eredmény már a hibák között van.
         Owner.SetMediaErrors(snapshot.Id, errors);
+        IsChecking = false;
     }
 }

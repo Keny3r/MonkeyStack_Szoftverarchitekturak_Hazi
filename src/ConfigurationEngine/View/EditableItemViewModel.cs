@@ -6,7 +6,7 @@ using ConfigurationEngine.Validation;
 
 /// <summary>
 /// A szerkeszthető elemek (karakter beállítások, mozgási animáció, szabály, forrás, mintavételezés) nézetmodelljeinek
-/// közös alapja (gui.md, "Mezőnkénti hibajelzés"): a hibákat a <c>Kind</c> + <c>ItemKey</c> + <c>PropertyName</c>
+/// közös alapja (view.md, "Mezőnkénti hibajelzés"): a hibákat a <c>Kind</c> + <c>ItemKey</c> + <c>PropertyName</c>
 /// hármas szerint rendeli a mezőkhöz. A szöveges mezők hibái az <see cref="InputField"/>-eken, a többi mezőé
 /// az <see cref="INotifyDataErrorInfo"/>-n és a <see cref="FieldErrors"/>-on, a <c>PropertyName = null</c> hibák
 /// az <see cref="ItemErrors"/>-ban (a részletek panel tetején) jelennek meg; a sor hibajele a <see cref="HasAnyError"/>.
@@ -65,17 +65,21 @@ public abstract class EditableItemViewModel : ObservableObject, INotifyDataError
         FocusRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Kiválogatja az elem hibáit az összes hiba közül, és a mezőkhöz rendeli őket.</summary>
-    public void ApplyErrors(IEnumerable<ValidationError> errors)
+    /// <summary>
+    /// Kiválogatja az elem hibáit az összes hiba közül a <see cref="ValidationResult.ErrorsFor(ConfigurationItemKind, string)"/>
+    /// segítségével (view.md, "Mezőnkénti hibajelzés"), és a mezőkhöz rendeli őket.
+    /// </summary>
+    public void ApplyErrors(ValidationResult errors)
     {
+        ArgumentNullException.ThrowIfNull(errors);
         var (kind, key) = (Kind, ItemKey);
-        var mine = errors.Where(e => e.Kind == kind && e.ItemKey == key).ToList();
+        var mine = errors.ErrorsFor(kind, key).ToList();
 
         var fieldNames = new HashSet<string>();
         foreach (var field in _fields)
         {
             fieldNames.Add(field.PropertyName);
-            field.SetErrors(mine.Where(e => e.PropertyName == field.PropertyName).Select(e => e.Message).ToList());
+            field.SetErrors(errors.ErrorsFor(kind, key, field.PropertyName).Select(e => e.Message).ToList());
         }
 
         var propertyErrors = mine

@@ -7,10 +7,10 @@ using MonkeyStack.Core.Configuration;
 namespace ConfigurationEngine;
 
 /// <summary>
-/// A Konfigurációs motor View ablaka, a konfigurációs ablak (docs/configuration_engine/gui.md).
+/// A Konfigurációs motor View ablaka, a konfigurációs ablak (docs/configuration_engine/view.md).
 /// A motort csak az <see cref="IConfigurationEditor"/> homlokzaton keresztül éri el (Wrapper Facade, Extension Interface):
 /// integrált futásnál a host a közös <c>ConfigurationService</c> példányt adja át <see cref="IConfigurationEditor"/>-ként,
-/// önálló (F5) futásnál az ablak maga hoz létre egyet (gui.md, "Az ablak létrehozása").
+/// önálló (F5) futásnál az ablak maga hoz létre egyet (view.md, "Az ablak létrehozása").
 /// </summary>
 public partial class MainWindow : Window
 {
@@ -63,7 +63,7 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Bezárás előtt mentetlen módosításnál megkérdezi, hogy menti, elveti, vagy nyitva hagyja az ablakot
-    /// (gui.md, "Elvetés és bezárás"). A döntés aszinkron (mentés), ezért az első bezárási kérést elutasítja,
+    /// (view.md, "Elvetés és bezárás"). A döntés aszinkron (mentés), ezért az első bezárási kérést elutasítja,
     /// és a döntés után maga zárja be az ablakot.
     /// </summary>
     protected override async void OnClosing(CancelEventArgs e)

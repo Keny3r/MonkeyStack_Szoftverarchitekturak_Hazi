@@ -18,7 +18,7 @@
     </Window.InputBindings>
 
     <DockPanel>
-        <!-- Figyelmeztető sáv: kihagyott elemek, visszaállított adatbázis, betöltési / mentési hiba (gui.md, "Hibajelzés") -->
+        <!-- Figyelmeztető sáv: kihagyott elemek, visszaállított adatbázis, betöltési / mentési hiba (view.md, "Hibajelzés") -->
         <Border DockPanel.Dock="Top"
                 Background="#FFF4CE" BorderBrush="#E8C547" BorderThickness="0,0,0,1" Padding="12,8"
                 Visibility="{Binding HasWarning, Converter={StaticResource BoolToVisibility}}">
@@ -55,13 +55,13 @@
             </StackPanel>
         </Border>
 
-        <!-- Mentés / Elvetés (gui.md, "Mentés") -->
+        <!-- Mentés / Elvetés (view.md, "Mentés") -->
         <Border DockPanel.Dock="Bottom" BorderBrush="#DDDDDD" BorderThickness="0,1,0,0" Padding="12,8">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                     <Button Content="Elvetés" Command="{Binding DiscardCommand}" MinWidth="90" Padding="10,3" Margin="0,0,8,0" />
                     <!-- „N hiba” közvetlenül a Mentés mellett: amíg van hiba, a Mentés inaktív; kattintásra az első hibához
-                         ugrik (gui.md, "Mezőnkénti hibajelzés") -->
+                         ugrik (view.md, "Mezőnkénti hibajelzés") -->
                     <TextBlock VerticalAlignment="Center" Margin="4,0,8,0"
                                Visibility="{Binding HasErrors, Converter={StaticResource BoolToVisibility}}">
                         <Hyperlink Command="{Binding GoToFirstErrorCommand}" Foreground="#C42B1C"
@@ -76,7 +76,7 @@
             </DockPanel>
         </Border>
 
-        <!-- Fülek (gui.md, "Áttekintés"); a fejléc a fül hibáinak számát is mutatja -->
+        <!-- Fülek (view.md, "Áttekintés"); a fejléc a fül hibáinak számát is mutatja -->
         <TabControl Margin="8" IsEnabled="{Binding IsEditable}" SelectedIndex="{Binding SelectedTabIndex}">
             <TabItem Header="{Binding CharacterTabHeader}">
                 <tabs:CharacterTabView DataContext="{Binding CharacterTab}" />

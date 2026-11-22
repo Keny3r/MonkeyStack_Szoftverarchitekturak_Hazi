@@ -5,7 +5,7 @@ using ConfigurationEngine.Validation;
 /// <summary>
 /// A fülek nézetmodelljeinek közös alapja: a szerkesztett másolat lecserélésekor újraépíti a sorokat, minden
 /// módosítás után kiosztja a hibákat a soroknak és frissíti az előnézeteket, és az „N hiba” feliratra kattintáskor
-/// kijelöli a hibás sort és a hibás mezőre viszi a fókuszt (gui.md, "Hibajelzés" és "Élő előnézet").
+/// kijelöli a hibás sort és a hibás mezőre viszi a fókuszt (view.md, "Hibajelzés" és "Élő előnézet").
 /// </summary>
 public abstract class TabViewModel : ObservableObject
 {
@@ -55,9 +55,11 @@ public abstract class TabViewModel : ObservableObject
 
     private void ApplyErrors(IReadOnlyList<ValidationError> errors)
     {
+        // Az összes hiba (beviteli, validátor, média) egy ValidationResult-ban, hogy a sorok az ErrorsFor-ral válogassanak.
+        var result = new ValidationResult(errors);
         foreach (var item in Items)
         {
-            item.ApplyErrors(errors);
+            item.ApplyErrors(result);
         }
     }
 

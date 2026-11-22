@@ -11,7 +11,7 @@
         <ResourceDictionary Source="/ConfigurationEngine;component/View/Styles.xaml" />
     </UserControl.Resources>
 
-    <!-- A „Szabályok” fül: lista + részletek (gui.md, "3. Viselkedési szabályok (rétegek)") -->
+    <!-- A „Szabályok” fül: lista + részletek (view.md, "3. Viselkedési szabályok (rétegek)") -->
     <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -174,7 +174,6 @@
                     <StackPanel Style="{StaticResource Cell}">
                         <StackPanel Orientation="Horizontal">
                             <TextBox Width="48" Text="{Binding FramesPerSecond.Text, UpdateSourceTrigger=PropertyChanged}"
-                                     ToolTip="{x:Static tabs:MovementRowViewModel.FramesPerSecondRangeText}"
                                      controls:FocusTarget.Property="FramesPerSecond" />
                             <TextBlock Text="fps" Margin="4,3,0,0" />
                         </StackPanel>
@@ -194,24 +193,23 @@
 
                 <!-- Kizáró csoport:  [fire ▾]   Prioritás: [20] -->
                 <TextBlock Grid.Row="4" Text="Kizáró csoport:" Style="{StaticResource Label}" />
-                <StackPanel Grid.Row="4" Grid.Column="1">
-                    <StackPanel Orientation="Horizontal">
-                        <StackPanel Style="{StaticResource Cell}">
-                            <ComboBox Width="130" IsEditable="True" IsTextSearchEnabled="False"
-                                      ItemsSource="{Binding DataContext.GroupNames, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                      Text="{Binding ExclusiveGroup, UpdateSourceTrigger=PropertyChanged}"
-                                      controls:FocusTarget.Property="ExclusiveGroup" />
-                            <TextBlock Style="{StaticResource FieldErrorText}" MaxWidth="130" Text="{Binding FieldErrors[ExclusiveGroup]}" />
-                        </StackPanel>
-                        <TextBlock Text="Prioritás:" Margin="8,3,8,0" VerticalAlignment="Top" />
-                        <StackPanel Style="{StaticResource Cell}">
-                            <TextBox Width="48" Text="{Binding Priority.Text, UpdateSourceTrigger=PropertyChanged}"
-                                     IsEnabled="{Binding HasGroup}" controls:FocusTarget.Property="Priority" />
-                            <TextBlock Style="{StaticResource FieldErrorText}" MaxWidth="160" Text="{Binding Priority.ErrorText}" />
-                        </StackPanel>
+                <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal">
+                    <StackPanel Style="{StaticResource Cell}">
+                        <ComboBox Width="130" IsEditable="True" IsTextSearchEnabled="False"
+                                  ItemsSource="{Binding DataContext.GroupNames, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                  Text="{Binding ExclusiveGroup, UpdateSourceTrigger=PropertyChanged}"
+                                  controls:FocusTarget.Property="ExclusiveGroup" />
+                        <TextBlock Style="{StaticResource FieldErrorText}" MaxWidth="130" Text="{Binding FieldErrors[ExclusiveGroup]}" />
                     </StackPanel>
-                    <!-- A kizáró csoport és a prioritás jelentése súgószövegként -->
-                    <TextBlock Foreground="Gray" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,4"
+                    <TextBlock Text="Prioritás:" Margin="8,3,8,0" VerticalAlignment="Top" />
+                    <StackPanel Style="{StaticResource Cell}">
+                        <TextBox Width="48" Text="{Binding Priority.Text, UpdateSourceTrigger=PropertyChanged}"
+                                 IsEnabled="{Binding HasGroup}" controls:FocusTarget.Property="Priority" />
+                        <TextBlock Style="{StaticResource FieldErrorText}" MaxWidth="160" Text="{Binding Priority.ErrorText}" />
+                    </StackPanel>
+                    <!-- A kizáró csoport és a prioritás jelentése súgószövegként, a mezők mellett -->
+                    <TextBlock Foreground="Gray" FontSize="11" TextWrapping="Wrap" MaxWidth="300" Margin="8,0,0,4"
+                               VerticalAlignment="Top"
                                Text="Azonos csoportból egyszerre csak a legnagyobb prioritású teljesülő szabály aktív. Üres csoport: nincs kizárás, a prioritás inaktív." />
                 </StackPanel>
             </Grid>

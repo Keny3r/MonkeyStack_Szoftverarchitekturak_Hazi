@@ -7,11 +7,11 @@ using MonkeyStack.Core.Events;
 /// <summary>Egy metrika a legördülő listában.</summary>
 public sealed record MetricOption(Metric Value, string Name);
 
-/// <summary>Egy összehasonlító operátor a legördülő listában, jellel (gui.md, "Részletek").</summary>
+/// <summary>Egy összehasonlító operátor a legördülő listában, jellel (view.md, "Részletek").</summary>
 public sealed record OperatorOption(ComparisonOperator Value, string Symbol);
 
 /// <summary>
-/// A metrikák és operátorok megjelenítése (gui.md, "3. Viselkedési szabályok" és "5. Mintavételezés";
+/// A metrikák és operátorok megjelenítése (view.md, "3. Viselkedési szabályok" és "5. Mintavételezés";
 /// schema.md, "Metrikák és értéktartományok"): név, mértékegység, és az <c>Idő</c> metrika <c>HH:mm</c> alakja.
 /// </summary>
 public static class MetricText
@@ -82,7 +82,7 @@ public static class MetricText
     }
 
     /// <summary>
-    /// A feltétel rövid szöveges alakja a szabálylistában (gui.md, "Rétegek listája"), pl. <c>CPU &gt; 80 %</c>,
+    /// A feltétel rövid szöveges alakja a szabálylistában (view.md, "Rétegek listája"), pl. <c>CPU &gt; 80 %</c>,
     /// <c>20:30–06:00</c>.
     /// </summary>
     public static string Condition(BehaviorRule rule)

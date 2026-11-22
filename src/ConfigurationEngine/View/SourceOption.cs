@@ -1,7 +1,7 @@
 namespace ConfigurationEngine.View;
 
 /// <summary>
-/// Egy animációs forrás a forrásválasztó legördülő listákban (gui.md, "Mozgási animációk" és "Részletek"):
+/// Egy animációs forrás a forrásválasztó legördülő listákban (view.md, "Mozgási animációk" és "Részletek"):
 /// a szerkesztett másolat forrásai, a még nem mentett, negatív ideiglenes azonosítójúakkal együtt.
 /// </summary>
 public sealed class SourceOption : ObservableObject

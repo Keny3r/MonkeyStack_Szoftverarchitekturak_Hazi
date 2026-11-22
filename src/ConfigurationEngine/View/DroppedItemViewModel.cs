@@ -3,7 +3,7 @@ namespace ConfigurationEngine.View;
 using ConfigurationEngine.Validation;
 
 /// <summary>
-/// Egy betöltéskor kihagyott elem a figyelmeztető sáv Részletek paneljén (gui.md, "Kihagyott elemek").
+/// Egy betöltéskor kihagyott elem a figyelmeztető sáv Részletek paneljén (view.md, "Kihagyott elemek").
 /// </summary>
 public sealed class DroppedItemViewModel
 {

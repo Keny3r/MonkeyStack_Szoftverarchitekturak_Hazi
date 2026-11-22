@@ -6,7 +6,7 @@ using ConfigurationEngine.Validation;
 using MonkeyStack.Core.Events;
 
 /// <summary>
-/// Egy metrika fix sora a „Mintavételezés” fülön (gui.md, "5. Mintavételezés"): a metrika felirata a mértékegységgel,
+/// Egy metrika fix sora a „Mintavételezés” fülön (view.md, "5. Mintavételezés"): a metrika felirata a mértékegységgel,
 /// az engedélyezés, a lekérdezési gyakoriság (ms, olvasható alakkal) és a metrikát használó szabályok.
 /// </summary>
 public sealed class PollingRowViewModel : EditableItemViewModel
@@ -58,11 +58,6 @@ public sealed class PollingRowViewModel : EditableItemViewModel
 
     /// <summary>Lekérdezési gyakoriság, ms (250–60000).</summary>
     public InputField IntervalMs { get; }
-
-    /// <summary>Az érvényes tartomány a <see cref="ConfigurationLimits.PollingIntervalMs"/>-ből, súgószövegnek.</summary>
-    public static string IntervalRangeText => string.Create(
-        CultureInfo.CurrentCulture,
-        $"{ConfigurationLimits.PollingIntervalMs.Min}–{ConfigurationLimits.PollingIntervalMs.Max} ms");
 
     /// <summary>A gyakoriság olvasható alakja, pl. <c>= 30 s</c>, <c>= 1 perc</c>.</summary>
     public string ReadableInterval => Readable(Polling.IntervalMs);

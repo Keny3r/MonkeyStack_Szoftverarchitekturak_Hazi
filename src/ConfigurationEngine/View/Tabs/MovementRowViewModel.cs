@@ -1,12 +1,11 @@
 namespace ConfigurationEngine.View.Tabs;
 
-using System.Globalization;
 using ConfigurationEngine.Model;
 using ConfigurationEngine.Validation;
 using MonkeyStack.Core.Character;
 
 /// <summary>
-/// Egy mozgásállapot fix sora a „Karakter” fülön (gui.md, "2. Mozgási animációk"): állapot (felirat), forrás
+/// Egy mozgásállapot fix sora a „Karakter” fülön (view.md, "2. Mozgási animációk"): állapot (felirat), forrás
 /// (legördülő lista a szerkesztett másolat forrásaival), sebesség (fps) és élő előnézet. Sort hozzáadni vagy törölni
 /// nem lehet, és „Nincs animáció” lehetőség sincs: a sorban mindig van kiválasztott forrás.
 /// </summary>
@@ -61,11 +60,6 @@ public sealed class MovementRowViewModel : EditableItemViewModel
 
     /// <summary>Lejátszási sebesség, fps.</summary>
     public InputField FramesPerSecond { get; }
-
-    /// <summary>Az érvényes tartomány a <see cref="ConfigurationLimits.FramesPerSecond"/>-ből, súgószövegnek.</summary>
-    public static string FramesPerSecondRangeText => string.Create(
-        CultureInfo.CurrentCulture,
-        $"{ConfigurationLimits.FramesPerSecond.Min:0.##}–{ConfigurationLimits.FramesPerSecond.Max:0.##} fps");
 
     public PreviewViewModel Preview { get; }
 

@@ -4,7 +4,7 @@ using System.Collections.ObjectModel;
 using MonkeyStack.Core.Character;
 
 /// <summary>
-/// A „Karakter” fül (gui.md, "1. Karakter mérete" és "2. Mozgási animációk"): felül a karakter mérete, alatta
+/// A „Karakter” fül (view.md, "1. Karakter mérete" és "2. Mozgási animációk"): felül a karakter mérete, alatta
 /// mozgásállapotonként egy fix sor, a <see cref="MovementState"/> sorrendjében.
 /// </summary>
 public sealed class CharacterTabViewModel : TabViewModel

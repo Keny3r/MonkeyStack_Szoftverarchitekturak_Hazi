@@ -11,7 +11,7 @@ using MonkeyStack.Core.Events;
 
 /// <summary>
 /// Memóriában tároló <see cref="IConfigurationEditor"/> a konfigurációs ablak önálló fejlesztéséhez és teszteléséhez
-/// (gui.md, "Alkalmazott minták": a View egy hamis facade-dal önállóan is tesztelhető). Akkor használja a
+/// (view.md, "Alkalmazott minták": a View egy hamis facade-dal önállóan is tesztelhető). Akkor használja a
 /// <see cref="MainWindow"/>, ha a kapott szolgáltatás még nem valósítja meg az <see cref="IConfigurationEditor"/>-t.
 /// Az ellenőrzést és a képkockák betöltését a valódi <see cref="ConfigurationValidator"/>, <see cref="MediaValidator"/>
 /// és <see cref="FrameLoader"/> végzi; csak a tárolás és az előnézetek léptetése egyszerűsített.

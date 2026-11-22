@@ -7,7 +7,7 @@ using ConfigurationEngine.View.Tabs;
 using MonkeyStack.Core.Events;
 
 /// <summary>
-/// A „Mintavételezés” fül (gui.md, "5. Mintavételezés") a minta konfigurációval: az akkumulátor mintavételezése ki van
+/// A „Mintavételezés” fül (view.md, "5. Mintavételezés") a minta konfigurációval: az akkumulátor mintavételezése ki van
 /// kapcsolva, és a „Lemerülés” szabály használja.
 /// </summary>
 public sealed class PollingTabTests : IDisposable

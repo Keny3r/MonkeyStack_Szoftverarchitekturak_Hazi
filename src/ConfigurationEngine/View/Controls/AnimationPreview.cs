@@ -7,7 +7,7 @@ using System.Windows.Media;
 using MonkeyStack.Core.Animation;
 
 /// <summary>
-/// Egy sor élő előnézete (gui.md, "Kirajzolás"): saját <see cref="Canvas"/>-ra, saját <see cref="AnimationView"/>
+/// Egy sor élő előnézete (view.md, "Kirajzolás"): saját <see cref="Canvas"/>-ra, saját <see cref="AnimationView"/>
 /// példánnyal, a <c>(0, 0)</c> pontba, tükrözés nélkül rajzol (<c>Draw(0, 0)</c>). A rajzolási ciklusban
 /// (<see cref="CompositionTarget.Rendering"/>) csak kirajzol, a léptetést a motor végzi; csak akkor rajzol, ha látható
 /// (az aktuális fülön van). A listák soraiban kicsinyítve (<see cref="IsCompact"/>, <see cref="Viewbox"/>), a részletek
@@ -38,6 +38,8 @@ public sealed class AnimationPreview : Border
     private const double FullStatusMaxWidth = 160;
     private const double FullStatusFontSize = 11;
     private const double CompactStatusFontSize = 8;
+    private const double CompactMessageMaxWidth = 160;
+    private const double CompactMessageFontSize = 10;
 
     private static readonly Brush ErrorBrush = CreateFrozenBrush(Color.FromRgb(0xC4, 0x2B, 0x1C));
 
@@ -121,14 +123,17 @@ public sealed class AnimationPreview : Border
 
     private void OnPreviewPropertyChanged(object? sender, PropertyChangedEventArgs e) => UpdateStatus();
 
+    /// <summary>
+    /// Betöltés közben „betöltés…”; ha a forrás nem tölthető be, az előnézet helyén a hiba üzenete (view.md, "Előnézeti
+    /// animációk"). A listák kicsinyített soraiban az üzenet kedvéért a doboz kiszélesedik (legfeljebb
+    /// <see cref="CompactMessageMaxWidth"/>-ig); a teljes üzenet súgóként is látszik.
+    /// </summary>
     private void UpdateStatus()
     {
-        // A listák kicsinyített soraiban a hibaüzenet nem fér el: ott csak egy jel látszik, a teljes szöveg súgóként
-        // (és a részletek panel teljes méretű előnézetén).
         var preview = Preview;
         if (preview is { HasError: true })
         {
-            _status.Text = IsCompact ? "⚠" : preview.ErrorMessage;
+            _status.Text = preview.ErrorMessage;
             _status.Foreground = ErrorBrush;
             _status.Visibility = Visibility.Visible;
             ToolTip = preview.ErrorMessage;
@@ -145,6 +150,40 @@ public sealed class AnimationPreview : Border
             _status.Visibility = Visibility.Collapsed;
             ToolTip = null;
         }
+
+        if (IsCompact)
+        {
+            ApplyCompactSize(showsMessage: preview is { HasError: true });
+        }
+    }
+
+    /// <summary>A kicsinyített doboz mérete: az előnézethez fix négyzet, a hibaüzenethez szélesebb.</summary>
+    private void ApplyCompactSize(bool showsMessage)
+    {
+        // Az üzenet idején a (már üres) vászon nem foglal helyet, így a sor csak az üzenetnyi magas.
+        _viewbox.Visibility = showsMessage ? Visibility.Collapsed : Visibility.Visible;
+        if (showsMessage)
+        {
+            ClearValue(WidthProperty);
+            ClearValue(HeightProperty);
+            MinWidth = CompactSize;
+            MinHeight = CompactSize;
+            MaxWidth = CompactMessageMaxWidth;
+            _status.MaxWidth = CompactMessageMaxWidth;
+            _status.FontSize = CompactMessageFontSize;
+        }
+        else
+        {
+            Width = CompactSize;
+            Height = CompactSize;
+            ClearValue(MinWidthProperty);
+            ClearValue(MinHeightProperty);
+            ClearValue(MaxWidthProperty);
+            _status.ClearValue(MaxWidthProperty);
+
+            // Kisebb betű, hogy a „betöltés…” a kicsinyített dobozba is beférjen.
+            _status.FontSize = CompactStatusFontSize;
+        }
     }
 
     private void UpdateLayoutMode()
@@ -157,19 +196,16 @@ public sealed class AnimationPreview : Border
         {
             _viewbox.Child = _canvas;
             _root.Children.Insert(0, _viewbox);
-            Width = CompactSize;
-            Height = CompactSize;
             ClipToBounds = true;
-            _status.ClearValue(MaxWidthProperty);
-
-            // Kisebb betű, hogy a „betöltés…” a kicsinyített dobozba is beférjen.
-            _status.FontSize = CompactStatusFontSize;
         }
         else
         {
             _root.Children.Insert(0, _canvas);
             ClearValue(WidthProperty);
             ClearValue(HeightProperty);
+            ClearValue(MinWidthProperty);
+            ClearValue(MinHeightProperty);
+            ClearValue(MaxWidthProperty);
             ClearValue(ClipToBoundsProperty);
 
             // A hibaüzenet tördelődik, és nem tolja szét a részletek panelt.

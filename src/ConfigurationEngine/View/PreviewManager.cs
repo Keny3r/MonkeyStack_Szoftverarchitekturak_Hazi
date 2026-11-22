@@ -4,7 +4,7 @@ using ConfigurationEngine.Model;
 using MonkeyStack.Core.Animation;
 
 /// <summary>
-/// A konfigurációs ablak előnézeteinek élettartama (gui.md, "Élettartam"):
+/// A konfigurációs ablak előnézeteinek élettartama (view.md, "Élettartam"):
 /// <list type="bullet">
 /// <item>sebesség- vagy forrásváltáskor és sor törlésekor egyenként (<see cref="PreviewViewModel"/>);</item>
 /// <item>Elvetéskor és bezáráskor az összes egyszerre (<see cref="ReleaseAll"/>);</item>

@@ -6,7 +6,7 @@ using ConfigurationEngine.Validation;
 using MonkeyStack.Core.Events;
 
 /// <summary>
-/// Egy viselkedési szabály a „Szabályok” fülön (gui.md, "3. Viselkedési szabályok (rétegek)"): a rétegek listájának
+/// Egy viselkedési szabály a „Szabályok” fülön (view.md, "3. Viselkedési szabályok (rétegek)"): a rétegek listájának
 /// sora és a részletek panel mezői. A módosítások a szerkesztett másolatba kerülnek, és Mentéskor tárolódnak.
 /// </summary>
 public sealed class RuleRowViewModel : EditableItemViewModel
@@ -211,7 +211,7 @@ public sealed class RuleRowViewModel : EditableItemViewModel
 
     /// <summary>
     /// A szabály metrikájának mintavételezése ki van kapcsolva, így a szabály sosem teljesül
-    /// (gui.md, "Rétegek listája" és "5. Mintavételezés").
+    /// (view.md, "Rétegek listája" és "5. Mintavételezés").
     /// </summary>
     public bool IsMetricPollingDisabled =>
         Owner.Data?.MetricPollings.FirstOrDefault(p => p.Metric == Rule.Metric) is { IsEnabled: false };

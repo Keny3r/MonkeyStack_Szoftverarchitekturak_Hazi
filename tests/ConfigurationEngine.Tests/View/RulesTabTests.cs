@@ -7,7 +7,7 @@ using ConfigurationEngine.View.Tabs;
 using MonkeyStack.Core.Events;
 
 /// <summary>
-/// A „Szabályok” fül (gui.md, "3. Viselkedési szabályok (rétegek)") a minta konfigurációval:
+/// A „Szabályok” fül (view.md, "3. Viselkedési szabályok (rétegek)") a minta konfigurációval:
 /// Kis tűz (Id 1, Z 20), Nagy tűz (Id 2, Z 20), Pizsama (Z 10), Lemerülés (Z 5, kikapcsolt akkumulátor-mintavételezés).
 /// </summary>
 public sealed class RulesTabTests : IDisposable

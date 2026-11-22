@@ -7,7 +7,7 @@ using ConfigurationEngine.View.Tabs;
 using MonkeyStack.Core.Character;
 
 /// <summary>
-/// A „Karakter” fül (gui.md, "1. Karakter mérete" és "2. Mozgási animációk").
+/// A „Karakter” fül (view.md, "1. Karakter mérete" és "2. Mozgási animációk").
 /// </summary>
 public sealed class CharacterTabTests : IDisposable
 {
