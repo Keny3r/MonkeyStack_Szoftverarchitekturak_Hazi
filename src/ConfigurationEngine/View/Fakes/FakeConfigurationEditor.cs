@@ -74,6 +74,9 @@ internal sealed class FakeConfigurationEditor : IConfigurationEditor, IDisposabl
         }
     }
 
+    /// <summary>Hányszor kellett egy forrás képkockáit ténylegesen betölteni (tesztekhez; a megosztott betöltés nem számít).</summary>
+    public int FrameLoadCount { get; private set; }
+
     /// <summary>A kiadott, még el nem dobott előnézetek száma (tesztekhez).</summary>
     public int PreviewCount
     {
@@ -351,6 +354,7 @@ internal sealed class FakeConfigurationEditor : IConfigurationEditor, IDisposabl
             {
                 frames = _frameLoader.LoadFramesAsync(source, width, height);
                 _frames[key] = frames;
+                FrameLoadCount++;
             }
 
             return frames;

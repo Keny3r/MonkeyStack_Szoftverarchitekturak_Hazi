@@ -88,7 +88,11 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
         CharacterTab = new Tabs.CharacterTabViewModel(this);
         RulesTab = new Tabs.RulesTabViewModel(this);
         SourcesTab = new Tabs.SourcesTabViewModel(this, browser);
+        PollingTab = new Tabs.PollingTabViewModel(this);
     }
+
+    /// <summary>A „Mintavételezés” fül: a rendszeresemények lekérdezési beállításai.</summary>
+    public Tabs.PollingTabViewModel PollingTab { get; }
 
     /// <summary>A „Források” fül: az animációs források könyvtára.</summary>
     public Tabs.SourcesTabViewModel SourcesTab { get; }

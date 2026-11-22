@@ -88,7 +88,7 @@
                 <tabs:SourcesTabView DataContext="{Binding SourcesTab}" />
             </TabItem>
             <TabItem Header="{Binding PollingTabHeader}">
-                <TextBlock Margin="12" Foreground="Gray" Text="Mintavételezés – hamarosan." />
+                <tabs:PollingTabView DataContext="{Binding PollingTab}" />
             </TabItem>
         </TabControl>
     </DockPanel>

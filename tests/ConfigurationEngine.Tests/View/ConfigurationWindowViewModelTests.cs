@@ -159,8 +159,10 @@ public sealed class ConfigurationWindowViewModelTests : IDisposable
         var slow = await _editor.CreatePreviewAnimationAsync(source, 5);
         var fast = await _editor.CreatePreviewAnimationAsync(source, 30);
 
+        // A két előnézet az aktuális képkockában eltérhet (a motor közben lépteti őket), de a forrás csak egyszer töltődik be.
         Assert.Equal(2, _editor.PreviewCount);
-        Assert.Same(slow.CurrentFrame, fast.CurrentFrame);
+        Assert.Equal(1, _editor.FrameLoadCount);
+        Assert.Equal(slow.FrameCount, fast.FrameCount);
 
         _editor.ReleasePreviewAnimation(slow);
         Assert.Equal(1, _editor.PreviewCount);
