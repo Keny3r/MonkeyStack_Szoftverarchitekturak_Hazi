@@ -31,11 +31,21 @@
                     <GridViewColumn Header="Metrika" Width="180">
                         <GridViewColumn.CellTemplate>
                             <DataTemplate DataType="{x:Type tabs:PollingRowViewModel}">
-                                <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                                    <!-- A hibás sor hibajele -->
-                                    <TextBlock Text="⚠ " Foreground="{StaticResource ErrorBrush}" ToolTip="A sor hibás."
-                                               Visibility="{Binding HasAnyError, Converter={StaticResource BoolToVisibility}}" />
-                                    <TextBlock Text="{Binding MetricLabel}" />
+                                <StackPanel Margin="0,3,0,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <!-- A hibás sor hibajele -->
+                                        <TextBlock Text="⚠ " Foreground="{StaticResource ErrorBrush}" ToolTip="A sor hibás."
+                                                   Visibility="{Binding HasAnyError, Converter={StaticResource BoolToVisibility}}" />
+                                        <TextBlock Text="{Binding MetricLabel}" />
+                                    </StackPanel>
+                                    <!-- A sor egészére vonatkozó hibák -->
+                                    <ItemsControl ItemsSource="{Binding ItemErrors}" MaxWidth="170">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Style="{StaticResource FieldErrorText}" Text="{Binding}" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                                 </StackPanel>
                             </DataTemplate>
                         </GridViewColumn.CellTemplate>

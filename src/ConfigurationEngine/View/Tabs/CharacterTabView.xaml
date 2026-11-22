@@ -29,6 +29,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <TextBlock Grid.Column="0" Text="Méret:" VerticalAlignment="Center" Margin="0,0,8,0" />
@@ -48,6 +49,15 @@
                            Style="{StaticResource FieldErrorText}" Text="{Binding Width.ErrorText}" />
                 <TextBlock Grid.Row="2" Grid.Column="3" Grid.ColumnSpan="3"
                            Style="{StaticResource FieldErrorText}" Text="{Binding Height.ErrorText}" />
+
+                <!-- A karakter beállítások egészére vonatkozó hibák -->
+                <ItemsControl Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="6" ItemsSource="{Binding ItemErrors}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Style="{StaticResource FieldErrorText}" Text="{Binding}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
             </Grid>
 
             <!-- 2. Mozgási animációk: „── Mozgási animációk ──” -->
