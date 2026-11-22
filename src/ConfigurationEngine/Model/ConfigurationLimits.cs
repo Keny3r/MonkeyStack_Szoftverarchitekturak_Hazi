@@ -63,6 +63,12 @@ public static class ConfigurationLimits
     public const long MediaMaxLoadedBytes = 64L * 1024 * 1024;
 
     /// <summary>
+    /// A futó konfiguráció összes betöltött képkockájának legnagyobb együttes mérete (minden forrás együtt), hogy sok
+    /// nagy forrás se foglalhasson korlátlan memóriát. 512 × 512 px-en 256 képkocka.
+    /// </summary>
+    public const long MediaMaxTotalLoadedBytes = 256L * 1024 * 1024;
+
+    /// <summary>
     /// Egy forrás dekódolandó pixelei összesen (képkockaszám × képkockaméret), hogy egy jól tömöríthető, apró fájl
     /// ne írhasson le sok óriási képkockát. 500 darab 512 × 512 px-es képkockának elég.
     /// </summary>

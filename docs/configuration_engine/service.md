@@ -54,7 +54,9 @@ sequenceDiagram
 
 A [séma szerint](./schema.md#animációk-előállítása) minden mozgásállapot és minden bekapcsolt szabály saját animációt kap a saját sebességével, a szabályok a saját `ZIndex`-ükkel is. A képkockák forrásonként egyszer töltődnek be, és az azonos forrású animációk megosztják őket. A kikapcsolt szabályok forrásait nem töltjük be.
 
-Ha egy forrás nem tölthető be (pl. a fájlt a mentés óta törölték, vagy a karakter méretén túl sok képkockát foglalna, lásd [Skálázás](./media.md#skálázás)):
+A forrásonkénti 64 MB-os keret ([Skálázás](./media.md#skálázás)) mellett az összes betöltött képkocka együtt legfeljebb 256 MB-ot foglalhat (`ConfigurationLimits.MediaMaxTotalLoadedBytes`), így sok nagy forrás sem foglalhat korlátlan memóriát. A mozgásállapotok töltődnek be először, utánuk a szabályok a konfiguráció sorrendjében; az a forrás, amely már nem fér bele, nem betölthetőnek számít. Újratöltés és méretváltás közben a régi animációk a cseréig a memóriában maradnak, ezért ilyenkor rövid ideig ennek a kétszerese is foglalt lehet.
+
+Ha egy forrás nem tölthető be (pl. a fájlt a mentés óta törölték, a karakter méretén túl sok képkockát foglalna, vagy már nem fér bele az együttes keretbe):
 
 | Felhasználás | Viselkedés |
 |---|---|

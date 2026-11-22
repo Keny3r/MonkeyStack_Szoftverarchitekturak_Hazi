@@ -315,6 +315,46 @@ public sealed class ConfigurationServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SourcesBeyondTotalMemoryBudget_AreTreatedAsFailed()
+    {
+        // 512 × 512 px-en egy képkocka 1 MB: a tűz 200 képkockája még belefér a 256 MB-ba, a pizsama 100-a már nem.
+        _store.Data = TestData.ValidConfiguration();
+        _store.Data.Character.CharacterWidth = 512;
+        _store.Data.Character.CharacterHeight = 512;
+        _loader.FrameCounts["fire.png"] = 200;
+        _loader.FrameCounts["pyjama"] = 100;
+
+        await _service.InitializeAsync();
+
+        Assert.Equal([20], _service.GetOverlayAnimations(Registry(cpu: 85, hour: 22)).Select(a => a.ZIndex));
+        Assert.Equal(3, Assert.Single(_service.MediaLoadFailures).AnimationSourceId);
+    }
+
+    [Fact]
+    public async Task WidthAndHeightSetters_ChangeOnlyTheirOwnDimension()
+    {
+        _store.Data = TestData.ValidConfiguration();
+        await _service.InitializeAsync();
+
+        _service.CharacterWidth = 200;
+        _service.CharacterHeight = 300;
+
+        Assert.Equal((200, 300), (_service.CharacterWidth, _service.CharacterHeight));
+    }
+
+    [Fact]
+    public async Task SetCharacterSize_BeforeInitialize_IsReplacedBySavedSize()
+    {
+        _store.Data = TestData.ValidConfiguration();
+
+        await _service.SetCharacterSizeAsync(300, 300);
+        await _service.InitializeAsync();
+
+        Assert.Equal((100, 100), (_service.CharacterWidth, _service.CharacterHeight));
+        Assert.Equal(100, _service.GetMovementAnimation(MovementState.Idle)!.CurrentFrame!.PixelWidth);
+    }
+
+    [Fact]
     public void BlockingWaitOnUiLikeContext_DoesNotDeadlock()
     {
         // Olyan szinkronizációs környezet, amely sosem futtatja a ráküldött folytatásokat (mint a blokkolt UI szál).
@@ -454,7 +494,11 @@ public sealed class ConfigurationServiceTests : IDisposable
         /// <summary>A kapun túljutott betöltések szélességei.</summary>
         public ConcurrentBag<int> Widths { get; } = [];
 
-        public int FrameCountOf(string path) => 2 + (Math.Abs(string.GetHashCode(path, StringComparison.Ordinal)) % 5);
+        /// <summary>Útvonalanként megadott képkockaszám; a többi útvonal 2–6 képkockát kap.</summary>
+        public Dictionary<string, int> FrameCounts { get; } = [];
+
+        public int FrameCountOf(string path) =>
+            FrameCounts.TryGetValue(path, out int count) ? count : 2 + (Math.Abs(string.GetHashCode(path, StringComparison.Ordinal)) % 5);
 
         public int CallsFor(string path) => _calls.GetValueOrDefault(path);
 

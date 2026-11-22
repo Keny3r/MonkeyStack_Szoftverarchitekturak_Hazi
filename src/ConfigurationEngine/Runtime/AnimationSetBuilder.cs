@@ -83,11 +83,16 @@ internal sealed class AnimationSetBuilder
         a.SourceType == b.SourceType &&
         string.Equals(a.Path.Trim().Replace('\\', '/'), b.Path, StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>Forrásonként egyszer tölt be; a nem betölthető forrást megjegyzi, és nem próbálja újra.</summary>
+    /// <summary>
+    /// Forrásonként egyszer tölt be; a nem betölthető forrást megjegyzi, és nem próbálja újra. A betöltött képkockák
+    /// együttes méretét a <see cref="ConfigurationLimits.MediaMaxTotalLoadedBytes"/> korlátozza: az a forrás, amely már
+    /// nem fér bele, nem betölthetőnek számít. A mozgásállapotok töltődnek be először, így ők férnek bele elsőként.
+    /// </summary>
     private sealed class FrameCache(IFrameLoader loader, int width, int height)
     {
         private readonly Dictionary<AnimationSource, IReadOnlyList<BitmapSource>?> _loaded = new(ReferenceEqualityComparer.Instance);
         private readonly List<MediaLoadFailure> _failures = [];
+        private long _totalBytes;
 
         public IReadOnlyList<MediaLoadFailure> Failures => _failures;
 
@@ -107,6 +112,25 @@ internal sealed class AnimationSetBuilder
             {
                 _failures.Add(new MediaLoadFailure(source.Id, source.Name, ex.Message, ex.PropertyName));
                 frames = null;
+            }
+
+            if (frames is not null)
+            {
+                long bytes = (long)frames.Count * width * height * 4;
+                if (_totalBytes + bytes > ConfigurationLimits.MediaMaxTotalLoadedBytes)
+                {
+                    long limitMb = ConfigurationLimits.MediaMaxTotalLoadedBytes / (1024 * 1024);
+                    _failures.Add(new MediaLoadFailure(
+                        source.Id,
+                        source.Name,
+                        $"{width} × {height} px karakterméreten az animációk együtt legfeljebb {limitMb} MB memóriát foglalhatnak; ez a forrás már nem fér bele.",
+                        null));
+                    frames = null;
+                }
+                else
+                {
+                    _totalBytes += bytes;
+                }
             }
 
             _loaded[source] = frames;

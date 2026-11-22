@@ -77,13 +77,13 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
     public int CharacterWidth
     {
         get { lock (_syncRoot) { return _characterWidth; } }
-        set => SetCharacterSize(value, CharacterHeight);
+        set => SetCharacterSize(value, 0); // a 0 a másik méretet változatlanul hagyja, így nincs olvasás-írás verseny
     }
 
     public int CharacterHeight
     {
         get { lock (_syncRoot) { return _characterHeight; } }
-        set => SetCharacterSize(CharacterWidth, value);
+        set => SetCharacterSize(0, value);
     }
 
     /// <summary>
@@ -128,6 +128,7 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
     {
         int version;
         CancellationToken token;
+        CancellationTokenSource? previous;
         lock (_syncRoot)
         {
             int newWidth = width > 0 ? ConfigurationLimits.CharacterSizePx.Clamp(width) : _characterWidth;
@@ -142,12 +143,15 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
             version = ++_sizeVersion;
             ResizeAll(_current);
 
-            // Az előző újraskálázás tokenje így már megszakított állapotú, ezért a forrása eldobható.
-            _rescaleCancellation?.Cancel();
-            _rescaleCancellation?.Dispose();
+            previous = _rescaleCancellation;
             _rescaleCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
             token = _rescaleCancellation.Token;
         }
+
+        // A megszakítás a zár után: a Cancel a várakozók folytatásait ezen a szálon is futtathatja, és azok
+        // nem futhatnak a motor zárja alatt. Megszakítás után a forrás eldobható.
+        previous?.Cancel();
+        previous?.Dispose();
 
         // Előbb indul az újraépítés, így egy hibás feliratkozó sem akadályozhatja meg.
         var rescale = Task.Run(() => RescaleAsync(version, token), CancellationToken.None);
@@ -243,7 +247,13 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
 
             lock (_syncRoot)
             {
-                // A Dispose után befejeződő felépítés eredménye már nem kerül be.
+                // A Dispose után befejeződő felépítés eredménye már nem kerül be. A _disposed ugyanezen zár alatt
+                // íródik, így a Dispose visszatérése után biztosan nincs csere.
+                if (_disposed)
+                {
+                    throw new OperationCanceledException(token);
+                }
+
                 token.ThrowIfCancellationRequested();
                 _current = built;
                 if (version == _sizeVersion)
@@ -304,7 +314,7 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
 
             lock (_syncRoot)
             {
-                if (version == _sizeVersion && !token.IsCancellationRequested)
+                if (version == _sizeVersion && !_disposed && !token.IsCancellationRequested)
                 {
                     _current = built;
                     swapped = true;
