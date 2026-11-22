@@ -113,7 +113,7 @@ public sealed class ConfigurationWindowViewModelTests : IDisposable
 
         _viewModel.GoToFirstErrorCommand.Execute(null);
 
-        Assert.Equal(ConfigurationWindowViewModel.RulesTab, _viewModel.SelectedTabIndex);
+        Assert.Equal(ConfigurationWindowViewModel.RulesTabIndex, _viewModel.SelectedTabIndex);
         Assert.Equal(ConfigurationItemKind.BehaviorRule, requested?.Kind);
     }
 

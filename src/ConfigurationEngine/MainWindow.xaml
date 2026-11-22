@@ -4,17 +4,13 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:view="clr-namespace:ConfigurationEngine.View"
+        xmlns:tabs="clr-namespace:ConfigurationEngine.View.Tabs"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=view:ConfigurationWindowViewModel}"
         Title="Konfiguráció" Height="640" Width="900" MinHeight="480" MinWidth="640"
         WindowStartupLocation="CenterScreen">
     <Window.Resources>
-        <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="View/Styles.xaml" />
-            </ResourceDictionary.MergedDictionaries>
-            <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
-        </ResourceDictionary>
+        <ResourceDictionary Source="/ConfigurationEngine;component/View/Styles.xaml" />
     </Window.Resources>
 
     <Window.InputBindings>
@@ -83,7 +79,7 @@
         <!-- Fülek (gui.md, "Áttekintés"); a fejléc a fül hibáinak számát is mutatja -->
         <TabControl Margin="8" IsEnabled="{Binding IsEditable}" SelectedIndex="{Binding SelectedTabIndex}">
             <TabItem Header="{Binding CharacterTabHeader}">
-                <TextBlock Margin="12" Foreground="Gray" Text="Karakter mérete és mozgási animációk – hamarosan." />
+                <tabs:CharacterTabView DataContext="{Binding CharacterTab}" />
             </TabItem>
             <TabItem Header="{Binding RulesTabHeader}">
                 <TextBlock Margin="12" Foreground="Gray" Text="Viselkedési szabályok (rétegek) – hamarosan." />

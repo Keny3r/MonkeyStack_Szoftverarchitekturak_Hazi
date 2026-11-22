@@ -88,7 +88,7 @@ public sealed class ViewBuildingBlocksTests : IDisposable
 
         _viewModel.GoToFirstErrorCommand.Execute(null);
 
-        Assert.Equal(ConfigurationWindowViewModel.RulesTab, _viewModel.SelectedTabIndex);
+        Assert.Equal(ConfigurationWindowViewModel.RulesTabIndex, _viewModel.SelectedTabIndex);
         Assert.Same(row, _tab.Selected);
         Assert.Equal(nameof(BehaviorRule.Threshold), row.PendingFocus);
     }
@@ -129,7 +129,7 @@ public sealed class ViewBuildingBlocksTests : IDisposable
 
         Assert.NotSame(before, row.Preview.Animation);
         Assert.Equal(25, row.Preview.Animation!.FramesPerSecond);
-        Assert.Equal(_tab.Rows.Count, _editor.PreviewCount);
+        Assert.Equal(ExpectedPreviews, _editor.PreviewCount);
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public sealed class ViewBuildingBlocksTests : IDisposable
         row.Preview.Release();
 
         Assert.Null(row.Preview.Animation);
-        Assert.Equal(_tab.Rows.Count - 1, _editor.PreviewCount);
+        Assert.Equal(ExpectedPreviews - 1, _editor.PreviewCount);
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public sealed class ViewBuildingBlocksTests : IDisposable
         Assert.True(await _viewModel.SaveAsync());
 
         Assert.Same(before, _tab.Row("Alvás").Preview.Animation);
-        Assert.Equal(_tab.Rows.Count, _editor.PreviewCount);
+        Assert.Equal(ExpectedPreviews, _editor.PreviewCount);
     }
 
     [Fact]
@@ -171,7 +171,7 @@ public sealed class ViewBuildingBlocksTests : IDisposable
         await WaitForPreviewsAsync();
 
         Assert.NotSame(before, _tab.Row("Pizsama").Preview.Animation);
-        Assert.Equal(_tab.Rows.Count, _editor.PreviewCount);
+        Assert.Equal(ExpectedPreviews, _editor.PreviewCount);
     }
 
     [Fact]
@@ -199,8 +199,13 @@ public sealed class ViewBuildingBlocksTests : IDisposable
         Assert.True(condition());
     }
 
+    /// <summary>A tesztfül sorai mellett a „Karakter” fül mozgási animációinak előnézetei is a motorban vannak.</summary>
+    private int ExpectedPreviews => _tab.Rows.Count + _viewModel.CharacterTab.MovementRows.Count;
+
     private Task WaitForPreviewsAsync() =>
-        WaitUntilAsync(() => _tab.Rows.All(r => r.Preview is { IsLoading: false, Animation: not null }));
+        WaitUntilAsync(() =>
+            _tab.Rows.All(r => r.Preview is { IsLoading: false, Animation: not null })
+            && _viewModel.CharacterTab.MovementRows.All(r => r.Preview is { IsLoading: false, Animation: not null }));
 
     private sealed class TestRulesTab(ConfigurationWindowViewModel owner) : TabViewModel(owner)
     {
@@ -208,7 +213,7 @@ public sealed class ViewBuildingBlocksTests : IDisposable
 
         public EditableItemViewModel? Selected { get; private set; }
 
-        public override int TabIndex => ConfigurationWindowViewModel.RulesTab;
+        public override int TabIndex => ConfigurationWindowViewModel.RulesTabIndex;
 
         protected override IEnumerable<EditableItemViewModel> Items => Rows;
 

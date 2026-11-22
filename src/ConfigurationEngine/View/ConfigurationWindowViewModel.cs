@@ -15,10 +15,10 @@ using ConfigurationEngine.Validation;
 public sealed class ConfigurationWindowViewModel : ObservableObject
 {
     /// <summary>A fülek indexe a <c>TabControl</c>-ban, a gui.md "Áttekintés" táblázatának sorrendjében.</summary>
-    public const int CharacterTab = 0;
-    public const int RulesTab = 1;
-    public const int SourcesTab = 2;
-    public const int PollingTab = 3;
+    public const int CharacterTabIndex = 0;
+    public const int RulesTabIndex = 1;
+    public const int SourcesTabIndex = 2;
+    public const int PollingTabIndex = 3;
 
     private static readonly string[] StateProperties =
     [
@@ -81,7 +81,12 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
         DiscardCommand = new AsyncRelayCommand(DiscardAsync, () => IsEditable);
         ToggleDetailsCommand = new RelayCommand(() => IsDetailsOpen = !IsDetailsOpen);
         GoToFirstErrorCommand = new RelayCommand(GoToFirstError, () => HasErrors);
+
+        CharacterTab = new Tabs.CharacterTabViewModel(this);
     }
+
+    /// <summary>A „Karakter” fül: méret és mozgási animációk.</summary>
+    public Tabs.CharacterTabViewModel CharacterTab { get; }
 
     /// <summary>A szerkesztett másolat lecserélése után a fülek ebből építik újra a soraikat.</summary>
     public event EventHandler<DataReloadedEventArgs>? DataReloaded;
@@ -160,7 +165,7 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
         set => SetProperty(ref _isDetailsOpen, value);
     }
 
-    /// <summary>A kiválasztott fül indexe (<see cref="CharacterTab"/>, …).</summary>
+    /// <summary>A kiválasztott fül indexe (<see cref="CharacterTabIndex"/>, …).</summary>
     public int SelectedTabIndex
     {
         get => _selectedTabIndex;
@@ -177,13 +182,13 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
     /// <summary>A Mentés gomb melletti, kattintható felirat (gui.md, "Mezőnkénti hibajelzés").</summary>
     public string ErrorCountText => $"{ErrorCount} hiba";
 
-    public string CharacterTabHeader => TabHeader("Karakter", CharacterTab);
+    public string CharacterTabHeader => TabHeader("Karakter", CharacterTabIndex);
 
-    public string RulesTabHeader => TabHeader("Szabályok", RulesTab);
+    public string RulesTabHeader => TabHeader("Szabályok", RulesTabIndex);
 
-    public string SourcesTabHeader => TabHeader("Források", SourcesTab);
+    public string SourcesTabHeader => TabHeader("Források", SourcesTabIndex);
 
-    public string PollingTabHeader => TabHeader("Mintavételezés", PollingTab);
+    public string PollingTabHeader => TabHeader("Mintavételezés", PollingTabIndex);
 
     public bool IsBusy => _isBusy;
 
@@ -213,10 +218,10 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
     /// <summary>A hiba fülének indexe.</summary>
     public static int TabOf(ConfigurationItemKind kind) => kind switch
     {
-        ConfigurationItemKind.CharacterSettings or ConfigurationItemKind.MovementAnimation => CharacterTab,
-        ConfigurationItemKind.BehaviorRule => RulesTab,
-        ConfigurationItemKind.AnimationSource => SourcesTab,
-        ConfigurationItemKind.MetricPolling => PollingTab,
+        ConfigurationItemKind.CharacterSettings or ConfigurationItemKind.MovementAnimation => CharacterTabIndex,
+        ConfigurationItemKind.BehaviorRule => RulesTabIndex,
+        ConfigurationItemKind.AnimationSource => SourcesTabIndex,
+        ConfigurationItemKind.MetricPolling => PollingTabIndex,
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
     };
 
@@ -276,10 +281,16 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
 
     /// <summary>
     /// A karakter méretét azonnal érvényesíti a szolgáltatáson (a futó karakteren és az előnézeteken is),
-    /// de tárolni csak a Mentés fogja (gui.md, "Karakter mérete").
+    /// de tárolni csak a Mentés fogja (gui.md, "Karakter mérete"). Ha a méret nem változott, a szolgáltatást nem hívja,
+    /// így a <c>ConfigurationChanged</c> sem váltódik ki feleslegesen.
     /// </summary>
     public void ApplyCharacterSize(int width, int height)
     {
+        if ((width, height) == (_appliedSize ?? _savedSize))
+        {
+            return;
+        }
+
         _editor.SetCharacterSize(width, height);
         _appliedSize = (width, height);
     }

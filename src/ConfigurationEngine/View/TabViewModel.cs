@@ -29,7 +29,7 @@ public abstract class TabViewModel : ObservableObject
         };
     }
 
-    /// <summary>A fül indexe (<see cref="ConfigurationWindowViewModel.CharacterTab"/>, …).</summary>
+    /// <summary>A fül indexe (<see cref="ConfigurationWindowViewModel.CharacterTabIndex"/>, …).</summary>
     public abstract int TabIndex { get; }
 
     protected ConfigurationWindowViewModel Owner { get; }
