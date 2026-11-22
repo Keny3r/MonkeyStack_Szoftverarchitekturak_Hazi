@@ -73,7 +73,13 @@ public interface IConfigurationEditor
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Eldobja a kiadott előnézeti animációkat (Elvetéskor, mentés után és az ablak bezárásakor);
+    /// Eldobja a megadott előnézeti animációt (pl. sebesség- vagy forrásváltáskor, amikor a View új előnézetet
+    /// kért helyette); ezután a motor már nem lépteti. A többi előnézet nem változik.
+    /// </summary>
+    void ReleasePreviewAnimation(IAnimation preview);
+
+    /// <summary>
+    /// Eldobja az összes kiadott előnézeti animációt (Elvetéskor és az ablak bezárásakor);
     /// ezután a motor már nem lépteti őket.
     /// </summary>
     void ReleasePreviewAnimations();

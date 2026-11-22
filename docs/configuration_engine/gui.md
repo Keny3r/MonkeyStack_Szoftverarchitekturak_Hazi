@@ -222,7 +222,7 @@ Minden sor, amelyhez animáció tartozik ([mozgási animációk](#2-mozgási-ani
 
 - A View a [modellen keresztül](#kapcsolat-a-modellel) kér a szolgáltatástól egy **előnézeti** [`IAnimation`](../../src/MonkeyStack.Core/Animation/IAnimation.cs) példányt a szerkesztett forráshoz és sebességhez. A szolgáltatás ugyanazzal a betöltéssel és skálázással készíti el, mint a karakter animációit ([Animációk előállítása](./schema.md#animációk-előállítása)), így az előnézet pontosan azt mutatja, ami mentés után a karakteren megjelenik.
 - Az előnézeti animációk **külön példányok**: a Karakter nem kapja meg őket. A **motor lépteti őket** a karakter animációival együtt (`UpdateAnimations`), a [közös modell](../mvc_architecture.md#animáció) szerint; a View csak rajzol. Ugyanannak a forrásnak a képkockái megosztottak, így egy forrás csak egyszer töltődik be.
-- A View **egyik animációt sem módosítja**, csak rajzolja őket. Ezért **sebesség vagy forrás változásakor** (másik forrás kiválasztása, tallózás, csere, sprite sheet rács módosítása) új előnézeti animációt kér, a régit pedig a `ReleasePreviewAnimations` dobja el. A képkockák megosztottak, így sebességváltáskor a forrás nem töltődik be újra.
+- A View **egyik animációt sem módosítja**, csak rajzolja őket. Ezért **sebesség vagy forrás változásakor** (másik forrás kiválasztása, tallózás, csere, sprite sheet rács módosítása) új előnézeti animációt kér, a régit pedig egyenként eldobja (`ReleasePreviewAnimation(preview)`); a többi sor előnézete nem változik. A képkockák megosztottak, így sebességváltáskor a forrás nem töltődik be újra.
 - **Méret változásakor** ([Karakter mérete](#1-karakter-mérete)) az előnézeti animációkat is a motor méretezi át; a View ilyenkor sem módosítja őket.
 - A betöltés a háttérben fut. Addig a sor „betöltés…” állapotot mutat; ha a forrás nem tölthető be, az előnézet helyén a hiba üzenete jelenik meg ([Hibajelzés](#hibajelzés)).
 
@@ -234,7 +234,16 @@ Minden sor, amelyhez animáció tartozik ([mozgási animációk](#2-mozgási-ani
 
 #### Élettartam
 
-Az előnézeti animációk a konfigurációs ablakhoz tartoznak. **Elvetés**kor és **Mentés** után a View a szerkesztett másolatból újraépíti őket, az ablak bezárásakor pedig eldobja őket (`ReleasePreviewAnimations`, `AnimationView.Detach`). Eldobás után a motor már nem lépteti őket, ezért a View minden esetben eldobja a régi előnézeteket, mielőtt újakat kér.
+Az előnézeti animációk a konfigurációs ablakhoz tartoznak. Eldobás után a motor már nem lépteti őket, ezért a View minden régi előnézetet eldob, mielőtt újat kér helyette:
+
+| Mikor | Mit dob el a View | Művelet |
+|---|---|---|
+| Sebesség- vagy forrásváltás egy sorban | csak az adott sor régi előnézetét | `ReleasePreviewAnimation(preview)` |
+| Sor törlése (szabály, forrás) | csak a törölt sor előnézetét | `ReleasePreviewAnimation(preview)` |
+| **Elvetés** | az összeset, majd a mentett állapotból újakat kér | `ReleasePreviewAnimations()` |
+| Az ablak bezárása | az összeset | `ReleasePreviewAnimations()`, `AnimationView.Detach` |
+
+**Mentés** után az előnézetek megmaradnak, mert már a mentett állapotot mutatják.
 
 ---
 
@@ -283,7 +292,7 @@ A **Mentés** gomb (és a `Ctrl+S`) akkor aktív, ha a szerkesztett másolat elt
 3. **Teljes ellenőrzés.** Lefut a validátor és minden forrásra a `Full` médiaellenőrzés ([Validálás](./schema.md#validálás)). Ha hibát talál, a mentés megszakad, semmi nem tárolódik, és a hibák a mezőknél jelennek meg.
 4. **Tárolás.** A View az [`IConfigurationEditor.SaveAsync`](../../src/ConfigurationEngine/IConfigurationEditor.cs) hívással átadja a szerkesztett másolatot, a modell pedig az [`IConfigurationStore.SaveAsync`](../../src/ConfigurationEngine/Storage/IConfigurationStore.cs) hívással lecseréli a tárolt állapotot. Az új elemek itt kapnak valódi azonosítót, amelyet a tároló a hivatkozásokkal együtt visszaír a View objektumaiba ([Ideiglenes azonosítók](./implementation.md#ideiglenes-azonosítók)).
 5. **Újratöltés a motorban** ([Component Configurator](./schema.md#alkalmazott-minták)). A tároló `Changed` eseményére a szolgáltatás újraolvassa a konfigurációt, újraépíti az animációkat, és kiváltja a `ConfigurationChanged` eseményt (a Karakternek), illetve – ha a mintavételezés változott – a `PollingSettingsChanged` eseményt (az OS motornak). A View ebben a lépésben nem vesz részt.
-6. **A View frissítése.** A View újra betölti a mentett állapotot (az új azonosítókkal), lecseréli vele a szerkesztett másolatot, újraépíti az [előnézeteket](#élő-előnézet), és „Mentve” állapotot mutat. A kihagyott elemek listája kiürül.
+6. **A View frissítése.** A View újra betölti a mentett állapotot (az új azonosítókkal), lecseréli vele a szerkesztett másolatot, és „Mentve” állapotot mutat. Az [előnézetek](#élettartam) megmaradnak, mert már a mentett állapotot mutatják. A kihagyott elemek listája kiürül.
 
 ```mermaid
 sequenceDiagram
@@ -341,6 +350,7 @@ classDiagram
         SaveAsync(data)
         SetCharacterSize(width, height)
         CreatePreviewAnimationAsync(source, fps)
+        ReleasePreviewAnimation(preview)
         ReleasePreviewAnimations()
     }
     class IConfigurationService {
@@ -382,7 +392,7 @@ A műveletek pontos szerződése az [`IConfigurationEditor`](../../src/Configura
 | `ValidateMediaAsync` | [Tallózás](#tallózás) |
 | `SaveAsync` | [Mentés](#mentés) 3–5. lépés |
 | `SetCharacterSize` | [Karakter mérete](#1-karakter-mérete), Elvetés |
-| `CreatePreviewAnimationAsync`, `ReleasePreviewAnimations` | [Élő előnézet](#élő-előnézet) |
+| `CreatePreviewAnimationAsync`, `ReleasePreviewAnimation`, `ReleasePreviewAnimations` | [Élő előnézet](#élettartam) |
 
 A műveletek szálbiztosak, és a UI szálról hívhatók. Az aszinkron műveletek a lassú munkát (fájlrendszer, dekódolás, adatbázis) a háttérben végzik, így a felület nem fagy le.
 
