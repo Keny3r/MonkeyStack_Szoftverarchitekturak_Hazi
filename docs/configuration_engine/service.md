@@ -43,7 +43,7 @@ sequenceDiagram
 ```
 
 - Az első betöltés az `InitializeAsync`. Amíg nem fejeződik be, a `GetMovementAnimation` `null`-t, a `GetOverlayAnimations` üres listát ad.
-- A tároló minden sikeres mentés után kiváltja a `Changed` eseményt. A motor erre a háttérben újratölt ([Component Configurator](#alkalmazott-minták)).
+- A tároló minden sikeres mentés után kiváltja a `Changed` eseményt. A motor erre a háttérben újratölt ([Component Configurator](#alkalmazott-minták)). Ha közben már vár egy újratöltés, amely még nem kezdte olvasni a tárolót, a további mentések nem indítanak újat, mert a várakozó már a legfrissebb adatot olvassa majd.
 - Az új animációk a motor zárján kívül készülnek, így a lassú képbetöltés közben a Karakter a régieket olvassa és a motor azokat lépteti. A csere a zár alatt egy lépésben történik.
 - Ha a tároló vagy a felépítés hibát dob (pl. zárolt adatbázis), a futó konfiguráció és a karakterméret változatlan marad. A `ReloadAsync` a hibát továbbadja, a mentés utáni háttér-újratöltés naplózza.
 - Az újratöltés a mentett karakterméretet állítja be, de csak a sikeres csere után, így a `CharacterWidth` és a `CharacterHeight` mindig a futó animációk méretét mutatja. A még nem mentett `SetCharacterSize` ilyenkor felülíródik; ha viszont a méretet a felépítés közben állítják, az új méret marad.
@@ -63,6 +63,8 @@ Ha egy forrás nem tölthető be (pl. a fájlt a mentés óta törölték, vagy 
 | Szabály | a szabály nem jelenik meg |
 
 A nem betölthető forrásokat a `ConfigurationService.MediaLoadFailures` sorolja fel, a hibaüzenettel és a hibás mezővel együtt.
+
+A kimaradt szabály a kizáró csoportjában sem vesz részt. A [Kiértékelés](./schema.md#kiértékelés) példájában, ha a *Nagy tűz* képe hiányzik, 85%-os CPU-nál a *Kis tűz* jelenik meg: a karakter a megjeleníthető legerősebb állapotot mutatja, ahelyett hogy semmit.
 
 ---
 
@@ -95,7 +97,8 @@ Amíg a 3. lépés tart, a régi képkockák az új méretre nyújtva látszanak
 |---|---|---|
 | `GetMovementAnimation`, `GetOverlayAnimations`, `UpdateAnimations`, `SetCharacterSize` | bármelyik | rövid, a motor zárja alatt |
 | `InitializeAsync`, `ReloadAsync`, újraépítés méretváltáskor | háttérszál (`Task.Run`) | egymás után futnak (újratöltési zár); a hívó szál szinkronizációs környezetét nem használják, így a UI szálról blokkolva is várhatók |
-| `ConfigurationChanged` | a műveletet végző szál | sosem a motor zárja alatt; a feliratkozónak kell a UI szálra váltania |
+| `ConfigurationChanged` | a műveletet végző szál | sosem a motor zárja alatt; a feliratkozónak kell a UI szálra váltania. A feliratkozók egymástól függetlenül futnak: egy feliratkozó kivételét a motor naplózza, és nem teszi sikertelenné a már megtörtént cserét |
+| `Dispose` | bármelyik | leiratkozik a tárolóról, és megszakítja a folyamatban lévő munkát; utána már nem cserélődik a konfiguráció, és nem tüzel esemény |
 
 ---
 

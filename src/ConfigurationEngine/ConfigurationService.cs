@@ -44,6 +44,12 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
     private bool _disposed;
 
     /// <summary>
+    /// 1, ha egy mentés utáni újratöltés már sorban áll, és még nem kezdte olvasni a tárolót; a további mentések
+    /// ilyenkor nem indítanak újat, mert a sorban álló már a legfrissebb adatot olvassa majd.
+    /// </summary>
+    private int _storeReloadQueued;
+
+    /// <summary>
     /// A felhasználó adatbázisával (<see cref="SqliteConfigurationStore.DefaultDatabasePath"/>) és a szállított képekkel.
     /// Nem végez I/O-t: a konfiguráció az <see cref="InitializeAsync"/> hívásakor töltődik be.
     /// </summary>
@@ -103,7 +109,7 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
     /// Ha a tároló vagy a felépítés hibát dob, a futó konfiguráció és a méret változatlan marad.
     /// </summary>
     public Task ReloadAsync(CancellationToken cancellationToken = default) =>
-        Task.Run(() => ReloadCoreAsync(cancellationToken), CancellationToken.None);
+        Task.Run(() => ReloadCoreAsync(fromStoreChange: false, cancellationToken), CancellationToken.None);
 
     /// <summary>
     /// Beállítja a karakter és az összes animáció egységes méretét, és kiváltja a <see cref="ConfigurationChanged"/>
@@ -143,8 +149,10 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
             token = _rescaleCancellation.Token;
         }
 
+        // Előbb indul az újraépítés, így egy hibás feliratkozó sem akadályozhatja meg.
+        var rescale = Task.Run(() => RescaleAsync(version, token), CancellationToken.None);
         OnConfigurationChanged();
-        return Task.Run(() => RescaleAsync(version, token), CancellationToken.None);
+        return rescale;
     }
 
     /// <summary>
@@ -208,7 +216,7 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
         _lifetime.Cancel();
     }
 
-    private async Task ReloadCoreAsync(CancellationToken cancellationToken)
+    private async Task ReloadCoreAsync(bool fromStoreChange, CancellationToken cancellationToken)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
         var token = linked.Token;
@@ -216,6 +224,12 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
         await _rebuildGate.WaitAsync(token).ConfigureAwait(false);
         try
         {
+            if (fromStoreChange)
+            {
+                // Innentől egy újabb mentés már új újratöltést igényel, mert ez a mentés előtti adatot is olvashatja.
+                Volatile.Write(ref _storeReloadQueued, 0);
+            }
+
             int version;
             lock (_syncRoot)
             {
@@ -229,6 +243,8 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
 
             lock (_syncRoot)
             {
+                // A Dispose után befejeződő felépítés eredménye már nem kerül be.
+                token.ThrowIfCancellationRequested();
                 _current = built;
                 if (version == _sizeVersion)
                 {
@@ -288,7 +304,7 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
 
             lock (_syncRoot)
             {
-                if (version == _sizeVersion)
+                if (version == _sizeVersion && !token.IsCancellationRequested)
                 {
                     _current = built;
                     swapped = true;
@@ -313,13 +329,19 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
         }
     }
 
-    private void OnStoreChanged(object? sender, EventArgs e) => _ = ReloadInBackgroundAsync();
+    private void OnStoreChanged(object? sender, EventArgs e)
+    {
+        if (Interlocked.Exchange(ref _storeReloadQueued, 1) == 0)
+        {
+            _ = ReloadInBackgroundAsync();
+        }
+    }
 
     private async Task ReloadInBackgroundAsync()
     {
         try
         {
-            await ReloadAsync().ConfigureAwait(false);
+            await Task.Run(() => ReloadCoreAsync(fromStoreChange: true, CancellationToken.None)).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -339,8 +361,27 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
         }
     }
 
+    /// <summary>
+    /// Kiváltja a <see cref="ConfigurationChanged"/> eseményt. A feliratkozók egymástól függetlenül futnak: egy
+    /// feliratkozó kivétele nem éri el a többit, és nem teszi sikertelenné a már megtörtént cserét.
+    /// </summary>
     private void OnConfigurationChanged()
     {
-        ConfigurationChanged?.Invoke(this, EventArgs.Empty);
+        if (ConfigurationChanged is not { } handlers)
+        {
+            return;
+        }
+
+        foreach (var handler in handlers.GetInvocationList().Cast<EventHandler>())
+        {
+            try
+            {
+                handler(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                Trace.TraceError($"Egy ConfigurationChanged feliratkozó hibát dobott: {ex}");
+            }
+        }
     }
 }

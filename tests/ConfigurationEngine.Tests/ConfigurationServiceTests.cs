@@ -260,6 +260,61 @@ public sealed class ConfigurationServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Dispose_DuringRescale_KeepsRunningSetAndRaisesNothing()
+    {
+        _store.Data = TestData.ValidConfiguration();
+        await _service.InitializeAsync();
+        _loader.Started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _loader.Gate = new TaskCompletionSource();
+        var idle = _service.GetMovementAnimation(MovementState.Idle);
+
+        var rescale = _service.SetCharacterSizeAsync(200, 200);
+        await _loader.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        int raised = 0;
+        _service.ConfigurationChanged += (_, _) => Interlocked.Increment(ref raised);
+        _service.Dispose();
+        await rescale.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Same(idle, _service.GetMovementAnimation(MovementState.Idle));
+        Assert.Equal(0, raised);
+    }
+
+    [Fact]
+    public async Task ThrowingSubscriber_DoesNotBreakReloadOrRescale()
+    {
+        _store.Data = TestData.ValidConfiguration();
+        int laterHandlerCalls = 0;
+        _service.ConfigurationChanged += (_, _) => throw new InvalidOperationException("hibás feliratkozó");
+        _service.ConfigurationChanged += (_, _) => Interlocked.Increment(ref laterHandlerCalls);
+
+        await _service.InitializeAsync();
+        await _service.SetCharacterSizeAsync(200, 200);
+
+        var idle = _service.GetMovementAnimation(MovementState.Idle)!;
+        Assert.Equal(200, idle.CurrentFrame!.PixelWidth);
+        Assert.Equal(3, laterHandlerCalls); // betöltés, méretváltás azonnal, újraépítés után
+    }
+
+    [Fact]
+    public async Task RepeatedSaves_DuringReload_AreCoalesced()
+    {
+        _store.Data = TestData.ValidConfiguration();
+        _loader.Gate = new TaskCompletionSource();
+        var changes = WaitForChange(count: 2);
+
+        var initialize = _service.InitializeAsync();
+        await _loader.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        _store.RaiseChanged();
+        _store.RaiseChanged();
+        _store.RaiseChanged();
+        _loader.Gate.SetResult();
+        await initialize;
+        await changes;
+
+        Assert.Equal(2, _store.Loads); // az első betöltés és egyetlen összevont újratöltés
+    }
+
+    [Fact]
     public void BlockingWaitOnUiLikeContext_DoesNotDeadlock()
     {
         // Olyan szinkronizációs környezet, amely sosem futtatja a ráküldött folytatásokat (mint a blokkolt UI szál).
@@ -323,10 +378,17 @@ public sealed class ConfigurationServiceTests : IDisposable
         Assert.Equal(1, fire.CurrentFrameIndex);
     }
 
-    private Task WaitForChange()
+    private Task WaitForChange(int count = 1)
     {
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        _service.ConfigurationChanged += (_, _) => tcs.TrySetResult();
+        int seen = 0;
+        _service.ConfigurationChanged += (_, _) =>
+        {
+            if (Interlocked.Increment(ref seen) >= count)
+            {
+                tcs.TrySetResult();
+            }
+        };
         return tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
     }
 
@@ -342,12 +404,19 @@ public sealed class ConfigurationServiceTests : IDisposable
 
         public bool Fail { get; set; }
 
+        public int Loads => _loads;
+
+        private int _loads;
+
         public event EventHandler? Changed;
 
-        public Task<ConfigurationLoadResult> LoadAsync(CancellationToken cancellationToken = default) =>
-            Fail
+        public Task<ConfigurationLoadResult> LoadAsync(CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref _loads);
+            return Fail
                 ? Task.FromException<ConfigurationLoadResult>(new IOException("zárolt adatbázis"))
                 : Task.FromResult(new ConfigurationLoadResult(ModelCopies.Copy(Data), [], false));
+        }
 
         public Task SaveAsync(ConfigurationData data, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
@@ -380,7 +449,7 @@ public sealed class ConfigurationServiceTests : IDisposable
 
         public TaskCompletionSource? Gate { get; set; }
 
-        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Started { get; set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         /// <summary>A kapun túljutott betöltések szélességei.</summary>
         public ConcurrentBag<int> Widths { get; } = [];
