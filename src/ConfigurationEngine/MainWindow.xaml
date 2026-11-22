@@ -3,10 +3,92 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:ConfigurationEngine"
+        xmlns:view="clr-namespace:ConfigurationEngine.View"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
+        d:DataContext="{d:DesignInstance Type=view:ConfigurationWindowViewModel}"
+        Title="Konfiguráció" Height="640" Width="900" MinHeight="480" MinWidth="640"
+        WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+    </Window.Resources>
 
-    </Grid>
+    <Window.InputBindings>
+        <KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveCommand}" />
+    </Window.InputBindings>
+
+    <DockPanel>
+        <!-- Figyelmeztető sáv: kihagyott elemek, visszaállított adatbázis, betöltési / mentési hiba (gui.md, "Hibajelzés") -->
+        <Border DockPanel.Dock="Top"
+                Background="#FFF4CE" BorderBrush="#E8C547" BorderThickness="0,0,0,1" Padding="12,8"
+                Visibility="{Binding HasWarning, Converter={StaticResource BoolToVisibility}}">
+            <StackPanel>
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Padding="10,2" VerticalAlignment="Top"
+                            Content="Részletek"
+                            Command="{Binding ToggleDetailsCommand}"
+                            Visibility="{Binding HasDroppedItems, Converter={StaticResource BoolToVisibility}}" />
+                    <TextBlock Text="⚠" FontSize="14" Margin="0,0,8,0" VerticalAlignment="Top" />
+                    <TextBlock Text="{Binding WarningText}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0" />
+                </DockPanel>
+
+                <!-- Részletek panel: elemenként a típus, a név és a kihagyás okai, valamint a mentéskori törlés -->
+                <StackPanel Margin="22,8,0,0"
+                            Visibility="{Binding IsDetailsOpen, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" TextWrapping="Wrap"
+                               Text="Mentéskor ezek az elemek véglegesen törlődnek. Ha szükséged van rájuk, a megfelelő fülön vedd fel őket újra, helyes értékekkel." />
+                    <ItemsControl ItemsSource="{Binding DroppedItems}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type view:DroppedItemViewModel}">
+                                <StackPanel Margin="0,0,0,6">
+                                    <TextBlock>
+                                        <Run Text="{Binding KindText, Mode=OneWay}" Foreground="#6B5B00" />
+                                        <Run Text="–" Foreground="#6B5B00" />
+                                        <Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" />
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding Reasons}" TextWrapping="Wrap" Margin="12,2,0,0" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Mentés / Elvetés (gui.md, "Mentés") -->
+        <Border DockPanel.Dock="Bottom" BorderBrush="#DDDDDD" BorderThickness="0,1,0,0" Padding="12,8">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Content="Elvetés" Command="{Binding DiscardCommand}" MinWidth="90" Padding="10,3" Margin="0,0,8,0" />
+                    <!-- „N hiba” közvetlenül a Mentés mellett: amíg van hiba, a Mentés inaktív; kattintásra az első hibához
+                         ugrik (gui.md, "Mezőnkénti hibajelzés") -->
+                    <TextBlock VerticalAlignment="Center" Margin="4,0,8,0"
+                               Visibility="{Binding HasErrors, Converter={StaticResource BoolToVisibility}}">
+                        <Hyperlink Command="{Binding GoToFirstErrorCommand}" Foreground="#C42B1C"
+                                   ToolTip="Ugrás az első hibához">
+                            <Run Text="{Binding ErrorCountText, Mode=OneWay}" />
+                        </Hyperlink>
+                    </TextBlock>
+                    <Button Content="Mentés" Command="{Binding SaveCommand}" MinWidth="90" Padding="10,3"
+                            ToolTip="Mentés (Ctrl+S)" />
+                </StackPanel>
+                <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" />
+            </DockPanel>
+        </Border>
+
+        <!-- Fülek (gui.md, "Áttekintés"); a fejléc a fül hibáinak számát is mutatja -->
+        <TabControl Margin="8" IsEnabled="{Binding IsEditable}" SelectedIndex="{Binding SelectedTabIndex}">
+            <TabItem Header="{Binding CharacterTabHeader}">
+                <TextBlock Margin="12" Foreground="Gray" Text="Karakter mérete és mozgási animációk – hamarosan." />
+            </TabItem>
+            <TabItem Header="{Binding RulesTabHeader}">
+                <TextBlock Margin="12" Foreground="Gray" Text="Viselkedési szabályok (rétegek) – hamarosan." />
+            </TabItem>
+            <TabItem Header="{Binding SourcesTabHeader}">
+                <TextBlock Margin="12" Foreground="Gray" Text="Animációs források – hamarosan." />
+            </TabItem>
+            <TabItem Header="{Binding PollingTabHeader}">
+                <TextBlock Margin="12" Foreground="Gray" Text="Mintavételezés – hamarosan." />
+            </TabItem>
+        </TabControl>
+    </DockPanel>
 </Window>
