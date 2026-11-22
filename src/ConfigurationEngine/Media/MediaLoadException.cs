@@ -10,4 +10,10 @@ public sealed class MediaLoadException : Exception
         : base(message, innerException)
     {
     }
+
+    /// <summary>
+    /// Az <see cref="Model.AnimationSource"/> hibás mezőjének neve (pl. <c>nameof(AnimationSource.Path)</c>),
+    /// hogy a konfigurációs ablak a megfelelő mezőnél jelezze a hibát; <c>null</c>, ha a forrás egészére vonatkozik.
+    /// </summary>
+    public string? PropertyName { get; init; }
 }
