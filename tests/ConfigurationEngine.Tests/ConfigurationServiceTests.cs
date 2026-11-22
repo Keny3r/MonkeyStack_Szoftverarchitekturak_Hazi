@@ -159,25 +159,126 @@ public sealed class ConfigurationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetCharacterSize_RescalesFramesInPlace()
+    public async Task SetCharacterSize_ResizesAtOnceThenRebuilds()
     {
         _store.Data = TestData.ValidConfiguration();
         await _service.InitializeAsync();
         var idle = _service.GetMovementAnimation(MovementState.Idle)!;
         int raised = 0;
         _service.ConfigurationChanged += (_, _) => Interlocked.Increment(ref raised);
+        _loader.Gate = new TaskCompletionSource();
 
         var rescale = _service.SetCharacterSizeAsync(200, 150);
 
-        // Azonnal az új méretben jelenik meg, egyetlen eseménnyel.
+        // Azonnal az új méretben jelenik meg (a régi képkockák nyújtva), egy eseménnyel.
         Assert.Equal((200, 150), (idle.GetWidth(), idle.GetHeight()));
         Assert.Equal(1, raised);
 
+        _loader.Gate.SetResult();
         await rescale;
 
-        Assert.Same(idle, _service.GetMovementAnimation(MovementState.Idle));
-        Assert.Equal((200, 150), (idle.CurrentFrame!.PixelWidth, idle.CurrentFrame.PixelHeight));
-        Assert.Equal(1, raised);
+        var rebuilt = _service.GetMovementAnimation(MovementState.Idle)!;
+        Assert.Equal((200, 150), (rebuilt.CurrentFrame!.PixelWidth, rebuilt.CurrentFrame.PixelHeight));
+        Assert.Equal(2, raised);
+    }
+
+    [Fact]
+    public async Task SetCharacterSize_SourceFailingAtNewSize_FallsBack()
+    {
+        _store.Data = TestData.ValidConfiguration();
+        await _service.InitializeAsync();
+        _loader.Failing.Add("walk.gif");
+
+        await _service.SetCharacterSizeAsync(200, 200);
+
+        Assert.Equal(_loader.FrameCountOf("movement/idle"), _service.GetMovementAnimation(MovementState.Idle)!.FrameCount);
+        Assert.Equal(1, Assert.Single(_service.MediaLoadFailures).AnimationSourceId);
+    }
+
+    [Fact]
+    public async Task SetCharacterSize_DuringReload_KeepsNewSize()
+    {
+        _store.Data = TestData.ValidConfiguration();
+        _loader.Gate = new TaskCompletionSource();
+
+        var reload = _service.InitializeAsync();
+        await _loader.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var rescale = _service.SetCharacterSizeAsync(200, 200);
+        _loader.Gate.SetResult();
+        await reload;
+        await rescale;
+
+        Assert.Equal((200, 200), (_service.CharacterWidth, _service.CharacterHeight));
+        var idle = _service.GetMovementAnimation(MovementState.Idle)!;
+        Assert.Equal((200, 200), (idle.CurrentFrame!.PixelWidth, idle.CurrentFrame.PixelHeight));
+    }
+
+    [Fact]
+    public async Task NewerSize_CancelsOlderRescale()
+    {
+        _store.Data = TestData.ValidConfiguration();
+        await _service.InitializeAsync();
+        _loader.Gate = new TaskCompletionSource();
+
+        var older = _service.SetCharacterSizeAsync(150, 150);
+        var newer = _service.SetCharacterSizeAsync(250, 250);
+        await older.WaitAsync(TimeSpan.FromSeconds(10)); // a kapu még zárva: csak megszakítással fejeződhet be
+        _loader.Gate.SetResult();
+        await newer;
+
+        var idle = _service.GetMovementAnimation(MovementState.Idle)!;
+        Assert.Equal((250, 250), (idle.CurrentFrame!.PixelWidth, idle.CurrentFrame.PixelHeight));
+        Assert.DoesNotContain(150, _loader.Widths);
+    }
+
+    [Fact]
+    public async Task FailingBuild_KeepsReportedSize()
+    {
+        _store.Data = TestData.ValidConfiguration();
+        await _service.InitializeAsync();
+        _store.Data.Character.CharacterWidth = 200;
+        _loader.Broken = true;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _service.ReloadAsync());
+
+        Assert.Equal(100, _service.CharacterWidth);
+        Assert.Equal(100, _service.GetMovementAnimation(MovementState.Idle)!.GetWidth());
+    }
+
+    [Fact]
+    public async Task Dispose_CancelsReload()
+    {
+        _store.Data = TestData.ValidConfiguration();
+        _loader.Gate = new TaskCompletionSource();
+
+        var reload = _service.InitializeAsync();
+        await _loader.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        _service.Dispose();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reload);
+        Assert.Null(_service.GetMovementAnimation(MovementState.Idle));
+    }
+
+    [Fact]
+    public void BlockingWaitOnUiLikeContext_DoesNotDeadlock()
+    {
+        // Olyan szinkronizációs környezet, amely sosem futtatja a ráküldött folytatásokat (mint a blokkolt UI szál).
+        _store.Data = TestData.ValidConfiguration();
+        _loader.Yield = true;
+        var previous = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(new BlockedContext());
+        try
+        {
+            // A blokkoló várakozás maga a vizsgált eset.
+#pragma warning disable xUnit1031
+            Assert.True(_service.InitializeAsync().Wait(TimeSpan.FromSeconds(10)));
+            Assert.True(_service.SetCharacterSizeAsync(200, 200).Wait(TimeSpan.FromSeconds(10)));
+#pragma warning restore xUnit1031
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previous);
+        }
     }
 
     [Fact]
@@ -191,8 +292,9 @@ public sealed class ConfigurationServiceTests : IDisposable
         await _service.SetCharacterSizeAsync(10_000, 0);
 
         Assert.Equal((ConfigurationLimits.CharacterSizePx.Max, 100), (_service.CharacterWidth, _service.CharacterHeight));
+        Assert.Equal(2, raised); // azonnal, majd az újraépítés után
         await _service.SetCharacterSizeAsync(ConfigurationLimits.CharacterSizePx.Max, 100);
-        Assert.Equal(1, raised);
+        Assert.Equal(2, raised);
     }
 
     [Fact]
@@ -253,24 +355,64 @@ public sealed class ConfigurationServiceTests : IDisposable
         public void RaiseChanged() => Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Útvonalanként eltérő számú, a kért méretű üres képkockát ad; a <see cref="Failing"/> útvonalakra hibát dob.</summary>
+    /// <summary>A ráküldött folytatásokat sosem futtatja, mint egy blokkolva várakozó UI szál.</summary>
+    private sealed class BlockedContext : SynchronizationContext
+    {
+        public override void Post(SendOrPostCallback d, object? state)
+        {
+        }
+    }
+
+    /// <summary>
+    /// Útvonalanként eltérő számú, a kért méretű üres képkockát ad; a <see cref="Failing"/> útvonalakra
+    /// <see cref="MediaLoadException"/>-t, <see cref="Broken"/> esetén más kivételt dob. A <see cref="Gate"/>
+    /// nyitásáig vár, így a tesztek a párhuzamos lefutásokat determinisztikusan állíthatják elő.
+    /// </summary>
     private sealed class FakeFrameLoader : IFrameLoader
     {
         private readonly ConcurrentDictionary<string, int> _calls = new();
 
         public HashSet<string> Failing { get; } = [];
 
+        public bool Broken { get; set; }
+
+        public bool Yield { get; set; }
+
+        public TaskCompletionSource? Gate { get; set; }
+
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        /// <summary>A kapun túljutott betöltések szélességei.</summary>
+        public ConcurrentBag<int> Widths { get; } = [];
+
         public int FrameCountOf(string path) => 2 + (Math.Abs(string.GetHashCode(path, StringComparison.Ordinal)) % 5);
 
         public int CallsFor(string path) => _calls.GetValueOrDefault(path);
 
-        public Task<IReadOnlyList<BitmapSource>> LoadFramesAsync(
+        public async Task<IReadOnlyList<BitmapSource>> LoadFramesAsync(
             AnimationSource source,
             int width,
             int height,
             CancellationToken cancellationToken = default)
         {
+            Started.TrySetResult();
+            if (Yield)
+            {
+                await Task.Yield();
+            }
+
+            if (Gate is { } gate)
+            {
+                await gate.Task.WaitAsync(cancellationToken);
+            }
+
             _calls.AddOrUpdate(source.Path, 1, (_, n) => n + 1);
+            Widths.Add(width);
+            if (Broken)
+            {
+                throw new InvalidOperationException("váratlan hiba");
+            }
+
             if (Failing.Contains(source.Path))
             {
                 throw new MediaLoadException($"{source.Path} nem található.") { PropertyName = nameof(AnimationSource.Path) };
@@ -278,7 +420,7 @@ public sealed class ConfigurationServiceTests : IDisposable
 
             var frame = BitmapSource.Create(width, height, 96, 96, PixelFormats.Pbgra32, null, new byte[width * height * 4], width * 4);
             frame.Freeze();
-            return Task.FromResult<IReadOnlyList<BitmapSource>>(Enumerable.Repeat(frame, FrameCountOf(source.Path)).ToArray());
+            return Enumerable.Repeat(frame, FrameCountOf(source.Path)).ToArray();
         }
     }
 }

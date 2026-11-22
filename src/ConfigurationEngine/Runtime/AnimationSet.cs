@@ -6,40 +6,44 @@ using MonkeyStack.Core.Animation;
 using MonkeyStack.Core.Character;
 using MonkeyStack.Core.Events;
 
-/// <summary>Egy animáció és a forrás, amelyből a képkockái betöltődtek (újraskálázáshoz).</summary>
-internal sealed record AnimationBinding(IMutableAnimation Animation, AnimationSource Source);
-
 /// <summary>Egy bekapcsolt szabály és az overlay animációja.</summary>
 internal sealed record RuleAnimation(BehaviorRule Rule, IMutableAnimation Animation);
 
 /// <summary>
 /// A futó konfiguráció egy pillanatképe: a kész animációk és a kiértékeléshez szükséges adatok.
-/// Létrehozás után nem változik (a benne lévő animációk képkockái és mérete igen), ezért a
+/// Létrehozás után nem változik (a benne lévő animációk mérete és léptetése igen), ezért a
 /// <see cref="ConfigurationService"/> a záron kívül építi fel, és a zár alatt egyben cseréli le.
 /// </summary>
 internal sealed class AnimationSet
 {
     public AnimationSet(
+        ConfigurationData? data,
         IReadOnlyDictionary<MovementState, IMutableAnimation> movement,
         IReadOnlyList<RuleAnimation> rules,
-        IReadOnlyList<AnimationBinding> bindings,
         IReadOnlySet<Metric> disabledMetrics,
         IReadOnlyList<MediaLoadFailure> failures)
     {
+        Data = data;
         Movement = movement;
         Rules = rules;
-        Bindings = bindings;
+        Animations = movement.Values.Concat(rules.Select(r => r.Animation)).ToArray();
         DisabledMetrics = disabledMetrics;
         Failures = failures;
     }
 
     /// <summary>A betöltés előtti állapot: nincs animáció.</summary>
     public static AnimationSet Empty { get; } = new(
+        null,
         new Dictionary<MovementState, IMutableAnimation>(),
-        [],
         [],
         new HashSet<Metric>(),
         []);
+
+    /// <summary>
+    /// A konfiguráció, amelyből a pillanatkép készült (méretváltáskor ebből épül újra); a betöltés előtt <c>null</c>.
+    /// Csak a motor látja, és nem módosítja.
+    /// </summary>
+    public ConfigurationData? Data { get; }
 
     /// <summary>Mozgásállapotonként egy animáció (betöltés után mind a négy állapothoz van).</summary>
     public IReadOnlyDictionary<MovementState, IMutableAnimation> Movement { get; }
@@ -47,8 +51,8 @@ internal sealed class AnimationSet
     /// <summary>A bekapcsolt, betölthető forrású szabályok, a konfiguráció sorrendjében.</summary>
     public IReadOnlyList<RuleAnimation> Rules { get; }
 
-    /// <summary>Az összes animáció a forrásával: ezeket lépteti és skálázza újra a motor.</summary>
-    public IReadOnlyList<AnimationBinding> Bindings { get; }
+    /// <summary>Az összes animáció: ezeket lépteti és méretezi át a motor.</summary>
+    public IReadOnlyList<IMutableAnimation> Animations { get; }
 
     /// <summary>A kikapcsolt mintavételezésű metrikák; a rájuk vonatkozó szabályok nem teljesülnek.</summary>
     public IReadOnlySet<Metric> DisabledMetrics { get; }

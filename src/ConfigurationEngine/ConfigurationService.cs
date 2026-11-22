@@ -36,8 +36,11 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
     private int _characterWidth = ConfigurationDefaults.CreateCharacterSettings().CharacterWidth;
     private int _characterHeight = ConfigurationDefaults.CreateCharacterSettings().CharacterHeight;
 
-    /// <summary>Minden méretváltozáskor nő; a korábbi méretre készült, közben elavult újraskálázás így eldobható.</summary>
+    /// <summary>Minden méretváltáskor nő; a korábbi méretre készült, közben elavult felépítés így eldobható.</summary>
     private int _sizeVersion;
+
+    /// <summary>A folyamatban lévő újraskálázás megszakítása; újabb méretváltáskor a régi méret skálázása leáll.</summary>
+    private CancellationTokenSource? _rescaleCancellation;
     private bool _disposed;
 
     /// <summary>
@@ -60,7 +63,7 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
     }
 
     /// <summary>
-    /// Tüzel, ha a futó konfiguráció megváltozott (újratöltés, méretváltozás); a Karakter ekkor újra lekérdezi az
+    /// Tüzel, ha a futó konfiguráció megváltozott (újratöltés, méretváltás); a Karakter ekkor újra lekérdezi az
     /// animációkat. Bármelyik szálon kiváltódhat, és sosem a motor zárja alatt.
     /// </summary>
     public event EventHandler? ConfigurationChanged;
@@ -94,72 +97,36 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
 
     /// <summary>
     /// Újraolvassa a konfigurációt a tárolóból, felépíti az új animációkat a záron kívül, majd a zár alatt
-    /// egyben lecseréli a régieket, és kiváltja a <see cref="ConfigurationChanged"/> eseményt.
-    /// A méret a mentett <see cref="CharacterSettings"/> szerinti lesz, a nem mentett <see cref="SetCharacterSize"/>
-    /// felülíródik. Ha a tároló hibát dob, a futó konfiguráció változatlan marad.
+    /// egyben lecseréli a régieket, és kiváltja a <see cref="ConfigurationChanged"/> eseményt. Háttérszálon fut,
+    /// így a UI szálról blokkolva is várható. A méret a mentett <see cref="CharacterSettings"/> szerinti lesz, a nem
+    /// mentett <see cref="SetCharacterSize"/> felülíródik; ha viszont a felépítés közben állítják, az új méret marad.
+    /// Ha a tároló vagy a felépítés hibát dob, a futó konfiguráció és a méret változatlan marad.
     /// </summary>
-    public async Task ReloadAsync(CancellationToken cancellationToken = default)
-    {
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
-        var token = linked.Token;
-
-        await _rebuildGate.WaitAsync(token).ConfigureAwait(false);
-        try
-        {
-            var data = (await _store.LoadAsync(token).ConfigureAwait(false)).Data;
-            int width = ConfigurationLimits.CharacterSizePx.Clamp(data.Character.CharacterWidth);
-            int height = ConfigurationLimits.CharacterSizePx.Clamp(data.Character.CharacterHeight);
-
-            int version;
-            lock (_syncRoot)
-            {
-                _characterWidth = width;
-                _characterHeight = height;
-                version = ++_sizeVersion;
-            }
-
-            var built = await _builder.BuildAsync(data, width, height, token).ConfigureAwait(false);
-
-            lock (_syncRoot)
-            {
-                _current = built;
-
-                // A felépítés alatt állított méret: az új animációk azonnal ezt mutatják, a képkockákat a
-                // közben elindult újraskálázás cseréli.
-                if (version != _sizeVersion)
-                {
-                    ResizeAll(built);
-                }
-            }
-        }
-        finally
-        {
-            _rebuildGate.Release();
-        }
-
-        OnConfigurationChanged();
-    }
+    public Task ReloadAsync(CancellationToken cancellationToken = default) =>
+        Task.Run(() => ReloadCoreAsync(cancellationToken), CancellationToken.None);
 
     /// <summary>
     /// Beállítja a karakter és az összes animáció egységes méretét, és kiváltja a <see cref="ConfigurationChanged"/>
-    /// eseményt. Az animációk azonnal az új méretben jelennek meg, a képkockákat a háttérben skálázza újra a motor,
-    /// és helyben cseréli, így az animáció példányok megmaradnak. A méret a
-    /// <see cref="ConfigurationLimits.CharacterSizePx"/> tartományra korlátozódik; a nem pozitív érték nem változtat.
+    /// eseményt. Az animációk azonnal az új méretben jelennek meg (a régi képkockák nyújtva). A háttérben a motor az
+    /// új méretre újraépíti az animációkat, majd a csere után a <see cref="ConfigurationChanged"/> még egyszer tüzel.
+    /// A méret a <see cref="ConfigurationLimits.CharacterSizePx"/> tartományra korlátozódik; a nem pozitív érték nem
+    /// változtat.
     /// </summary>
     public void SetCharacterSize(int width, int height) => _ = SetCharacterSizeAsync(width, height);
 
     /// <summary>
-    /// Mint a <see cref="SetCharacterSize"/>; a visszaadott feladat az újraskálázás végén fejeződik be. Nem dob kivételt:
-    /// ha az újraskálázás meghiúsul, az animációk a régi képkockákat mutatják az új méretben.
+    /// Mint a <see cref="SetCharacterSize"/>; a visszaadott feladat az újraépítés végén (vagy elavulásakor) fejeződik
+    /// be. Nem dob kivételt: ha az újraépítés meghiúsul, az animációk a régi képkockákat mutatják az új méretben.
     /// </summary>
     public Task SetCharacterSizeAsync(int width, int height)
     {
         int version;
+        CancellationToken token;
         lock (_syncRoot)
         {
             int newWidth = width > 0 ? ConfigurationLimits.CharacterSizePx.Clamp(width) : _characterWidth;
             int newHeight = height > 0 ? ConfigurationLimits.CharacterSizePx.Clamp(height) : _characterHeight;
-            if (newWidth == _characterWidth && newHeight == _characterHeight)
+            if (_disposed || (newWidth == _characterWidth && newHeight == _characterHeight))
             {
                 return Task.CompletedTask;
             }
@@ -168,10 +135,16 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
             _characterHeight = newHeight;
             version = ++_sizeVersion;
             ResizeAll(_current);
+
+            // Az előző újraskálázás tokenje így már megszakított állapotú, ezért a forrása eldobható.
+            _rescaleCancellation?.Cancel();
+            _rescaleCancellation?.Dispose();
+            _rescaleCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+            token = _rescaleCancellation.Token;
         }
 
         OnConfigurationChanged();
-        return RescaleAsync(version);
+        return Task.Run(() => RescaleAsync(version, token), CancellationToken.None);
     }
 
     /// <summary>
@@ -211,13 +184,14 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
     {
         lock (_syncRoot)
         {
-            foreach (var binding in _current.Bindings)
+            foreach (var animation in _current.Animations)
             {
-                binding.Animation.Update(deltaTime);
+                animation.Update(deltaTime);
             }
         }
     }
 
+    /// <summary>Leiratkozik a tárolóról, és megszakítja a folyamatban lévő betöltést és újraskálázást.</summary>
     public void Dispose()
     {
         lock (_syncRoot)
@@ -234,11 +208,56 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
         _lifetime.Cancel();
     }
 
-    private async Task RescaleAsync(int version)
+    private async Task ReloadCoreAsync(CancellationToken cancellationToken)
     {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+        var token = linked.Token;
+
+        await _rebuildGate.WaitAsync(token).ConfigureAwait(false);
         try
         {
-            await _rebuildGate.WaitAsync(_lifetime.Token).ConfigureAwait(false);
+            int version;
+            lock (_syncRoot)
+            {
+                version = _sizeVersion;
+            }
+
+            var data = (await _store.LoadAsync(token).ConfigureAwait(false)).Data;
+            int width = ConfigurationLimits.CharacterSizePx.Clamp(data.Character.CharacterWidth);
+            int height = ConfigurationLimits.CharacterSizePx.Clamp(data.Character.CharacterHeight);
+            var built = await _builder.BuildAsync(data, width, height, token).ConfigureAwait(false);
+
+            lock (_syncRoot)
+            {
+                _current = built;
+                if (version == _sizeVersion)
+                {
+                    // A mentett méret csak a sikeres csere után érvényes, így a jelentett méret mindig az animációké.
+                    (_characterWidth, _characterHeight) = (width, height);
+                    _sizeVersion++;
+                }
+                else
+                {
+                    // Felépítés közben állított méret: az új animációk azonnal ezt mutatják, a képkockákat a
+                    // közben elindult újraskálázás építi újra.
+                    ResizeAll(built);
+                }
+            }
+        }
+        finally
+        {
+            _rebuildGate.Release();
+        }
+
+        OnConfigurationChanged();
+    }
+
+    private async Task RescaleAsync(int version, CancellationToken token)
+    {
+        bool swapped = false;
+        try
+        {
+            await _rebuildGate.WaitAsync(token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -247,26 +266,32 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
 
         try
         {
-            AnimationSet current;
+            ConfigurationData? data;
             int width;
             int height;
             lock (_syncRoot)
             {
                 if (version != _sizeVersion)
                 {
-                    return; // közben újabb méret jött, annak az újraskálázása elvégzi
+                    return; // közben újabb méret vagy újratöltés jött, az elvégzi
                 }
 
-                (current, width, height) = (_current, _characterWidth, _characterHeight);
+                (data, width, height) = (_current.Data, _characterWidth, _characterHeight);
             }
 
-            var apply = await _builder.PrepareRescaleAsync(current.Bindings, width, height, _lifetime.Token).ConfigureAwait(false);
+            if (data is null)
+            {
+                return; // még nincs betöltve; az első betöltés a mentett méretet használja
+            }
+
+            var built = await _builder.BuildAsync(data, width, height, token).ConfigureAwait(false);
 
             lock (_syncRoot)
             {
-                if (version == _sizeVersion && ReferenceEquals(current, _current))
+                if (version == _sizeVersion)
                 {
-                    apply();
+                    _current = built;
+                    swapped = true;
                 }
             }
         }
@@ -280,6 +305,11 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
         finally
         {
             _rebuildGate.Release();
+        }
+
+        if (swapped)
+        {
+            OnConfigurationChanged();
         }
     }
 
@@ -303,9 +333,9 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
 
     private void ResizeAll(AnimationSet set)
     {
-        foreach (var binding in set.Bindings)
+        foreach (var animation in set.Animations)
         {
-            binding.Animation.SetSize(_characterWidth, _characterHeight);
+            animation.SetSize(_characterWidth, _characterHeight);
         }
     }
 

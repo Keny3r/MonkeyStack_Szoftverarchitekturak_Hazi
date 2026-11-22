@@ -5,7 +5,6 @@ using ConfigurationEngine.Media;
 using ConfigurationEngine.Model;
 using MonkeyStack.Core.Animation;
 using MonkeyStack.Core.Character;
-using MonkeyStack.Core.Events;
 
 /// <summary>
 /// A betöltött konfigurációból felépíti a futó animációkat (schema.md, "Animációk előállítása").
@@ -27,7 +26,8 @@ internal sealed class AnimationSetBuilder
     /// alapanimációt (ha az sem, üres animációt, hogy az állapot sose maradjon animáció nélkül);</item>
     /// <item>minden bekapcsolt szabályhoz egyet; a nem betölthető forrású szabály kimarad.</item>
     /// </list>
-    /// A nem betölthető forrásokat az <see cref="AnimationSet.Failures"/> sorolja fel.
+    /// A nem betölthető forrásokat az <see cref="AnimationSet.Failures"/> sorolja fel. A <paramref name="data"/>-t
+    /// a pillanatkép megtartja, ezért a hívó utána nem módosíthatja.
     /// </summary>
     public async Task<AnimationSet> BuildAsync(ConfigurationData data, int width, int height, CancellationToken cancellationToken)
     {
@@ -41,14 +41,13 @@ internal sealed class AnimationSetBuilder
         }
 
         var movement = new Dictionary<MovementState, IMutableAnimation>();
-        var bindings = new List<AnimationBinding>();
         foreach (var state in Enum.GetValues<MovementState>())
         {
             var row = data.MovementAnimations.FirstOrDefault(m => m.MovementState == state);
             var configured = row is not null ? sources.GetValueOrDefault(row.AnimationSourceId) : null;
             var fallback = ConfigurationDefaults.CreateMovementSource(state);
             var source = configured ?? fallback;
-            var loaded = await frames.LoadAsync(source, cancellationToken);
+            var loaded = await frames.LoadAsync(source, cancellationToken).ConfigureAwait(false);
             double framesPerSecond = row?.FramesPerSecond ?? 0;
 
             if (configured is null || loaded is null)
@@ -57,63 +56,27 @@ internal sealed class AnimationSetBuilder
                 // Ha a beállított forrás maga a szállított mappa, nem próbáljuk újra.
                 if (loaded is null && !IsSameMedia(source, fallback))
                 {
-                    source = fallback;
-                    loaded = await frames.LoadAsync(source, cancellationToken);
+                    loaded = await frames.LoadAsync(fallback, cancellationToken).ConfigureAwait(false);
                 }
 
                 framesPerSecond = ConfigurationDefaults.CreateMovementAnimation(state, fallback.Id).FramesPerSecond;
             }
 
-            var animation = new Animation(loaded ?? [], width, height, framesPerSecond);
-            movement[state] = animation;
-            bindings.Add(new AnimationBinding(animation, source));
+            movement[state] = new Animation(loaded ?? [], width, height, framesPerSecond);
         }
 
         var rules = new List<RuleAnimation>();
         foreach (var rule in data.BehaviorRules.Where(r => r.IsEnabled))
         {
             if (sources.GetValueOrDefault(rule.AnimationSourceId) is { } source &&
-                await frames.LoadAsync(source, cancellationToken) is { } loaded)
+                await frames.LoadAsync(source, cancellationToken).ConfigureAwait(false) is { } loaded)
             {
-                var animation = new Animation(loaded, width, height, rule.FramesPerSecond, rule.ZIndex);
-                rules.Add(new RuleAnimation(rule, animation));
-                bindings.Add(new AnimationBinding(animation, source));
+                rules.Add(new RuleAnimation(rule, new Animation(loaded, width, height, rule.FramesPerSecond, rule.ZIndex)));
             }
         }
 
         var disabledMetrics = data.MetricPollings.Where(p => !p.IsEnabled).Select(p => p.Metric).ToHashSet();
-        return new AnimationSet(movement, rules, bindings, disabledMetrics, frames.Failures);
-    }
-
-    /// <summary>
-    /// Újraskálázza a meglévő animációkat <paramref name="width"/> × <paramref name="height"/> méretre: a forrásokat
-    /// újra betölti, és a képkockákat helyben cseréli (<see cref="IMutableAnimation.SetFrames"/>), így az animáció
-    /// példányok megmaradnak. A cserét a <paramref name="apply"/> végzi, hogy a hívó a saját zárja alatt futtathassa;
-    /// a nem betölthető forrás animációja a régi képkockáit tartja meg.
-    /// </summary>
-    public async Task<Action> PrepareRescaleAsync(
-        IReadOnlyList<AnimationBinding> bindings,
-        int width,
-        int height,
-        CancellationToken cancellationToken)
-    {
-        var frames = new FrameCache(_frameLoader, width, height);
-        var updates = new List<(IMutableAnimation Animation, IReadOnlyList<BitmapSource> Frames)>();
-        foreach (var binding in bindings)
-        {
-            if (await frames.LoadAsync(binding.Source, cancellationToken) is { } loaded)
-            {
-                updates.Add((binding.Animation, loaded));
-            }
-        }
-
-        return () =>
-        {
-            foreach (var (animation, loaded) in updates)
-            {
-                animation.SetFrames(loaded, width, height);
-            }
-        };
+        return new AnimationSet(data, movement, rules, disabledMetrics, frames.Failures);
     }
 
     private static bool IsSameMedia(AnimationSource a, AnimationSource b) =>
@@ -138,7 +101,7 @@ internal sealed class AnimationSetBuilder
             IReadOnlyList<BitmapSource>? frames;
             try
             {
-                frames = await loader.LoadFramesAsync(source, width, height, cancellationToken);
+                frames = await loader.LoadFramesAsync(source, width, height, cancellationToken).ConfigureAwait(false);
             }
             catch (MediaLoadException ex)
             {
