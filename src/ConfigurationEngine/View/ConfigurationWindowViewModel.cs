@@ -75,6 +75,7 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
     {
         _editor = editor ?? throw new ArgumentNullException(nameof(editor));
         _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
+        Previews = new PreviewManager(editor);
 
         SaveCommand = new AsyncRelayCommand(() => SaveAsync(), () => CanSave);
         DiscardCommand = new AsyncRelayCommand(DiscardAsync, () => IsEditable);
@@ -90,8 +91,26 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
     /// </summary>
     public event EventHandler<ValidationError>? ErrorNavigationRequested;
 
+    /// <summary>A hibák (<see cref="Errors"/>) frissítése után: a fülek kiosztják őket a soraiknak.</summary>
+    public event EventHandler? ErrorsUpdated;
+
+    /// <summary>Minden módosítás után (<see cref="NotifyEdited"/>): a fülek frissítik az előnézeteiket.</summary>
+    public event EventHandler? Edited;
+
     /// <summary>A szerkesztett másolat; <c>null</c>, amíg nincs betöltve, vagy ha a betöltés nem sikerült.</summary>
     public ConfigurationData? Data => _data;
+
+    /// <summary>Az ablak előnézeteinek élettartama (gui.md, "Élettartam").</summary>
+    public PreviewManager Previews { get; }
+
+    /// <summary>
+    /// A forrásválasztó legördülő listák elemei: a szerkesztett másolat forrásai, az új (negatív ideiglenes
+    /// azonosítójú) forrásokkal együtt; minden módosítás után frissülnek.
+    /// </summary>
+    public ObservableCollection<SourceOption> SourceOptions { get; } = [];
+
+    /// <summary>A szerkesztett másolat azonosítójú forrása, vagy <c>null</c>, ha nincs ilyen.</summary>
+    public AnimationSource? FindSource(int id) => Data?.AnimationSources.FirstOrDefault(s => s.Id == id);
 
     public ObservableCollection<DroppedItemViewModel> DroppedItems { get; } = [];
 
@@ -216,9 +235,11 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
         }
 
         _statusMessage = null;
+        SyncSourceOptions();
         Revalidate();
         _isDirty = Snapshot(Data) != _savedSnapshot;
         RefreshState();
+        Edited?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
@@ -377,7 +398,7 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
         }
 
         RestoreSavedSize();
-        _editor.ReleasePreviewAnimations();
+        Previews.ReleaseAll();
         await LoadAsync(DataReloadReason.Discarded);
     }
 
@@ -410,7 +431,7 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
     }
 
     /// <summary>Az ablak bezárásakor: eldobja az összes előnézeti animációt.</summary>
-    public void OnWindowClosed() => _editor.ReleasePreviewAnimations();
+    public void OnWindowClosed() => Previews.ReleaseAll();
 
     private async Task LoadAsync(DataReloadReason reason)
     {
@@ -446,9 +467,50 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
         }
 
         MarkSaved(result.Data);
+        SyncSourceOptions();
         OnPropertyChanged(nameof(Data));
         OnPropertyChanged(nameof(IsDetailsOpen));
-        DataReloaded?.Invoke(this, new DataReloadedEventArgs(reason));
+
+        // Mentés után az előnézetek megmaradnak: az újraépített sorok átveszik őket (gui.md, "Élettartam").
+        var args = new DataReloadedEventArgs(reason);
+        if (reason == DataReloadReason.Saved)
+        {
+            Previews.KeepDuring(() => DataReloaded?.Invoke(this, args));
+        }
+        else
+        {
+            DataReloaded?.Invoke(this, args);
+        }
+    }
+
+    /// <summary>
+    /// A forrásválasztó lista frissítése helyben (nem újraépítéssel), hogy a legördülő listák kijelölése megmaradjon.
+    /// </summary>
+    private void SyncSourceOptions()
+    {
+        var sources = Data?.AnimationSources ?? [];
+        var ids = sources.Select(s => s.Id).ToHashSet();
+        for (var i = SourceOptions.Count - 1; i >= 0; i--)
+        {
+            if (!ids.Contains(SourceOptions[i].Id))
+            {
+                SourceOptions.RemoveAt(i);
+            }
+        }
+
+        for (var i = 0; i < sources.Count; i++)
+        {
+            var source = sources[i];
+            var option = SourceOptions.FirstOrDefault(o => o.Id == source.Id);
+            if (option is null)
+            {
+                SourceOptions.Insert(Math.Min(i, SourceOptions.Count), new SourceOption(source.Id, source.Name));
+            }
+            else
+            {
+                option.Name = source.Name;
+            }
+        }
     }
 
     /// <summary>A megadott másolatot tekinti a mentett állapotnak.</summary>
@@ -546,6 +608,7 @@ public sealed class ConfigurationWindowViewModel : ObservableObject
         SaveCommand.RaiseCanExecuteChanged();
         DiscardCommand.RaiseCanExecuteChanged();
         GoToFirstErrorCommand.RaiseCanExecuteChanged();
+        ErrorsUpdated?.Invoke(this, EventArgs.Empty);
     }
 
     private static string Snapshot(ConfigurationData data) => JsonSerializer.Serialize(data);
