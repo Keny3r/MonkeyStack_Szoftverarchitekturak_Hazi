@@ -17,8 +17,8 @@ using MonkeyStack.Core.Events;
 public class ConfigurationService : IConfigurationService
 {
     private readonly object _syncRoot = new();
-    private readonly Dictionary<MovementState, IAnimation> _movementAnimations = new();
-    private readonly List<IAnimation> _allAnimations = new();
+    private readonly Dictionary<MovementState, IMutableAnimation> _movementAnimations = new();
+    private readonly List<IMutableAnimation> _allAnimations = new();
     private int _characterWidth = 100;
     private int _characterHeight = 100;
 

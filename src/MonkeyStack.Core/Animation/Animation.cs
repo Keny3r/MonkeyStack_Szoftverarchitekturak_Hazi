@@ -7,7 +7,7 @@ using System.Windows.Media.Imaging;
 /// A Konfigurációs motor példányosítja a betöltött és fix méretűre skálázott képkockákkal,
 /// és folyamatosan pörgeti az Update metódussal. Pozícióval nem rendelkezik.
 /// </summary>
-public class Animation : IAnimation
+public class Animation : IMutableAnimation
 {
     private readonly object _syncRoot = new();
     private IReadOnlyList<BitmapSource> _frames;
