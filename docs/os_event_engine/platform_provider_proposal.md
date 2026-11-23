@@ -1,6 +1,7 @@
 # Javaslat: járható felületek (platformok) szolgáltatása – `IPlatformProvider`
 
 > Státusz: **ELFOGADVA** a [#3](https://github.com/Keny3r/MonkeyStack_Szoftverarchitekturak_Hazi/pull/3) review-ján (Frink Dávid, Karakter motor). Döntések: [0. fejezet](#0-döntések). Megvalósítás: [OS motor terv, M11](./plan.md#9-megvalósítási-lépések-mérföldkövek).
+> A szerződés (2. fejezet) a #7-tel bekerült a Core-ba: [`IPlatformProvider`](../../src/MonkeyStack.Core/Character/IPlatformProvider.cs), [`PlatformSnapshot`](../../src/MonkeyStack.Core/Character/PlatformSnapshot.cs) (+ `Empty`), [`ScreenArea`](../../src/MonkeyStack.Core/Character/ScreenArea.cs), [`ScreenRect`](../../src/MonkeyStack.Core/Character/ScreenRect.cs). A `Win32PlatformProvider` az M11-ben jön.
 > Szerző: OS esemény értesítő motor felelőse · Kapcsolódó: [OS motor terv](./plan.md) · [MVC terv](../mvc_architecture.md) · [Szótár](../../README.md#szótár)
 
 ---
@@ -37,7 +38,7 @@ Ami hiányzik:
 
 ## 2. Javasolt szerződés (Core)
 
-Új fájl: `src/MonkeyStack.Core/Character/IPlatformProvider.cs` (Core változás → egyeztetés).
+Megvalósítva a #7-ben, típusonként külön fájlban a `src/MonkeyStack.Core/Character/` alatt (a Karakter motor a #8-ban kérte). Eltérés a vázlattól: a `PlatformSnapshot` kapott egy `Empty` kezdőértéket.
 
 ```csharp
 namespace MonkeyStack.Core.Character;
@@ -192,7 +193,7 @@ Mindkét esetben az interfész a Core-ban van, és a host (`CharacterEngine/App`
 
 ## 8. Ha elfogadjátok: lépések
 
-1. `IPlatformProvider`, `PlatformSnapshot`, `ScreenArea`, `ScreenRect` a Core-ba (Core változás, közös PR).
+1. ✅ `IPlatformProvider`, `PlatformSnapshot`, `ScreenArea`, `ScreenRect` a Core-ba (#7).
 2. `Win32PlatformProvider` (A vagy B opció szerint) + unit tesztek egy hamis ablaklistával (takarás, maximalizált, fullscreen, több monitor).
 3. Host: PerMonitorV2 manifest, a szolgáltató létrehozása, átadása a fizika tick ciklusának.
 4. Dokumentáció: link az [MVC terv „Karakter és Fizika”](../mvc_architecture.md#karakter-és-fizika) fejezetéből (a fejezet felelősének engedélyével).

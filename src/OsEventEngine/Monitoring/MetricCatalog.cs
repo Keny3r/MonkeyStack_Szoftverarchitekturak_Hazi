@@ -46,6 +46,11 @@ public static class MetricCatalog
         _ => throw new ArgumentOutOfRangeException(nameof(metric), metric, null)
     });
 
+    /// <summary>A metrika leírója a <see cref="Descriptors"/> közül.</summary>
+    public static MetricDescriptor Descriptor(Metric metric) =>
+        Descriptors.FirstOrDefault(d => d.Metric == metric)
+        ?? throw new ArgumentOutOfRangeException(nameof(metric), metric, null);
+
     /// <summary>
     /// A tesztpanel sorai. A csúszka-tartomány ott szűkebb lehet a teljes tartománynál (ablakszám, inaktivitás),
     /// hogy a gyakran tesztelt értékek könnyen beállíthatók legyenek.
