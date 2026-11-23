@@ -66,6 +66,17 @@ public sealed class ConfigurationEditorTests : IDisposable
     }
 
     [Fact]
+    public async Task DatabaseReset_DuringServiceLoad_IsReportedToTheNextEditorLoadOnce()
+    {
+        _store.ResetOnNextLoad = true;
+
+        await _service.InitializeAsync();
+
+        Assert.True((await Editor.LoadAsync()).DatabaseWasReset);
+        Assert.False((await Editor.LoadAsync()).DatabaseWasReset);
+    }
+
+    [Fact]
     public async Task ReleaseThenCreate_OfSameSource_ReusesFrames()
     {
         var slow = await Editor.CreatePreviewAnimationAsync(Walk, framesPerSecond: 2);

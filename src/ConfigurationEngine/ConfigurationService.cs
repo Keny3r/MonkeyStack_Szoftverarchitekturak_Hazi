@@ -54,6 +54,9 @@ public sealed class ConfigurationService : IConfigurationService, IPollingSettin
     /// <summary>Minden méretváltáskor nő; a korábbi méretre készült, közben elavult felépítés így eldobható.</summary>
     private int _sizeVersion;
 
+    /// <summary>1, ha a szolgáltatás saját betöltése visszaállította az adatbázist, és a View még nem kapta meg a jelzést.</summary>
+    private int _unreportedDatabaseReset;
+
     /// <summary>A folyamatban lévő újraskálázás megszakítása; újabb méretváltáskor a régi méret skálázása leáll.</summary>
     private CancellationTokenSource? _rescaleCancellation;
     private bool _disposed;
@@ -266,9 +269,16 @@ public sealed class ConfigurationService : IConfigurationService, IPollingSettin
         }
     }
 
-    /// <summary>A tárolt konfiguráció: minden hívás új, független másolatot ad (a tároló minden betöltéskor újraolvas).</summary>
-    public Task<ConfigurationLoadResult> LoadAsync(CancellationToken cancellationToken = default) =>
-        _store.LoadAsync(cancellationToken);
+    /// <summary>
+    /// A tárolt konfiguráció: minden hívás új, független másolatot ad (a tároló minden betöltéskor újraolvas). Ha az
+    /// adatbázist a szolgáltatás saját betöltése állította vissza, a következő hívás azt is jelzi, hogy a View
+    /// figyelmeztetése akkor se maradjon el, ha a szolgáltatás töltött be előbb.
+    /// </summary>
+    public async Task<ConfigurationLoadResult> LoadAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await _store.LoadAsync(cancellationToken).ConfigureAwait(false);
+        return Interlocked.Exchange(ref _unreportedDatabaseReset, 0) == 1 ? result with { DatabaseWasReset = true } : result;
+    }
 
     /// <summary>A mentéssel azonos normalizálás után futtatja a validátort; a <paramref name="data"/> nem változik.</summary>
     public ValidationResult Validate(ConfigurationData data)
@@ -400,7 +410,13 @@ public sealed class ConfigurationService : IConfigurationService, IPollingSettin
                 version = _sizeVersion;
             }
 
-            var data = (await _store.LoadAsync(token).ConfigureAwait(false)).Data;
+            var loaded = await _store.LoadAsync(token).ConfigureAwait(false);
+            if (loaded.DatabaseWasReset)
+            {
+                Interlocked.Exchange(ref _unreportedDatabaseReset, 1);
+            }
+
+            var data = loaded.Data;
             int width = ConfigurationLimits.CharacterSizePx.Clamp(data.Character.CharacterWidth);
             int height = ConfigurationLimits.CharacterSizePx.Clamp(data.Character.CharacterHeight);
             var built = await _builder.BuildAsync(data, width, height, token).ConfigureAwait(false);

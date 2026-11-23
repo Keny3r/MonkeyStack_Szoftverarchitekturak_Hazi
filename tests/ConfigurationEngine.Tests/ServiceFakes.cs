@@ -18,6 +18,9 @@ internal sealed class FakeStore : IConfigurationStore
 
     public bool Fail { get; set; }
 
+    /// <summary>A következő betöltés jelzi, hogy az adatbázist visszaállította (mint a hiányzó vagy sérült fájlnál).</summary>
+    public bool ResetOnNextLoad { get; set; }
+
     public int Loads => _loads;
 
     private int _loads;
@@ -27,9 +30,14 @@ internal sealed class FakeStore : IConfigurationStore
     public Task<ConfigurationLoadResult> LoadAsync(CancellationToken cancellationToken = default)
     {
         Interlocked.Increment(ref _loads);
-        return Fail
-            ? Task.FromException<ConfigurationLoadResult>(new IOException("zárolt adatbázis"))
-            : Task.FromResult(new ConfigurationLoadResult(ModelCopies.Copy(Data), [], false));
+        if (Fail)
+        {
+            return Task.FromException<ConfigurationLoadResult>(new IOException("zárolt adatbázis"));
+        }
+
+        bool reset = ResetOnNextLoad;
+        ResetOnNextLoad = false;
+        return Task.FromResult(new ConfigurationLoadResult(ModelCopies.Copy(Data), [], reset));
     }
 
     /// <summary>A sikeres mentések száma.</summary>

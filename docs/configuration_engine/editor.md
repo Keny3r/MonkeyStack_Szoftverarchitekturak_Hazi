@@ -43,7 +43,7 @@ A View-nak szóló Wrapper Facade: mögötte a tároló, a validátor, a médiae
 
 | Művelet | Mit csinál |
 |---|---|
-| `LoadAsync` | A tároló betöltése ([`IConfigurationStore.LoadAsync`](../../src/ConfigurationEngine/Storage/IConfigurationStore.cs)). Minden hívás új, független másolatot ad, így a View szabadon módosíthatja |
+| `LoadAsync` | A tároló betöltése ([`IConfigurationStore.LoadAsync`](../../src/ConfigurationEngine/Storage/IConfigurationStore.cs)). Minden hívás új, független másolatot ad, így a View szabadon módosíthatja. Ha az adatbázist a szolgáltatás saját betöltése állította vissza, a következő hívás jelzi (`DatabaseWasReset`), így a View figyelmeztetése nem marad el |
 | `Validate` | A mentéssel azonos normalizálás után a [`ConfigurationValidator`](../../src/ConfigurationEngine/Validation/ConfigurationValidator.cs); a View objektumai nem változnak |
 | `ValidateMediaAsync` | A forrás `Full` médiaellenőrzése ([Médiafájlok validálása](./schema.md#médiafájlok-validálása)) |
 | `SaveAsync` | Validátor és minden forrás `Full` ellenőrzése; hiba esetén `ConfigurationValidationException`, és semmi nem tárolódik. Utána a tároló ment, visszaírja az új azonosítókat, és a `Changed` eseményére a szolgáltatás a háttérben újratölt ([Component Configurator](./schema.md#alkalmazott-minták)) |
