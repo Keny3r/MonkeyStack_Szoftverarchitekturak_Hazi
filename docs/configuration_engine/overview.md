@@ -23,3 +23,4 @@ SQLite adatbázis.
 - [Animáció modell és View](../mvc_architecture.md#animáció)
 - [Konfigurációs ablak (GUI terv)](./view.md)
 - [Konfigurációs ablak (implementáció)](./view_implementation.md)
+- [Szerkesztő homlokzat, mintavételezés és léptetés](./editor.md)
