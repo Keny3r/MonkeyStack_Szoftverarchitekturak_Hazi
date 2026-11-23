@@ -41,6 +41,32 @@ public sealed class RuleEvaluatorTests
         Assert.Equal(["Korábban felvett"], Select(rules, Registry(cpu: 50)));
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void BlankExclusiveGroup_MeansNoGroup(string blank)
+    {
+        BehaviorRule[] rules =
+        [
+            Rule(1, "A", Metric.Cpu, ComparisonOperator.Gt, 10, group: blank, priority: 5),
+            Rule(2, "B", Metric.Cpu, ComparisonOperator.Gt, 10, group: blank, priority: 1)
+        ];
+
+        Assert.Equal(["A", "B"], Select(rules, Registry(cpu: 50)));
+    }
+
+    [Fact]
+    public void ExclusiveGroupName_IsTrimmedAndCaseInsensitive()
+    {
+        BehaviorRule[] rules =
+        [
+            Rule(1, "Kis tűz", Metric.Cpu, ComparisonOperator.Gt, 10, group: "fire ", priority: 1),
+            Rule(2, "Nagy tűz", Metric.Cpu, ComparisonOperator.Gt, 20, group: " Fire", priority: 2)
+        ];
+
+        Assert.Equal(["Nagy tűz"], Select(rules, Registry(cpu: 50)));
+    }
+
     [Fact]
     public void EqualZIndex_IsOrderedById()
     {

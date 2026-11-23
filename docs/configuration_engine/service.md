@@ -72,10 +72,11 @@ A kimaradt szabály a kizáró csoportjában sem vesz részt. A [Kiértékelés]
 
 ### Kiértékelés
 
-A `GetOverlayAnimations` a [séma kiértékelési szabályait](./schema.md#kiértékelés) követi. A séma szövegét két ponton pontosítja a megvalósítás:
+A `GetOverlayAnimations` a [séma kiértékelési szabályait](./schema.md#kiértékelés) követi. A séma szövegét három ponton pontosítja a megvalósítás:
 
 - A kikapcsolt mintavételezésű metrika szabályai nem teljesülnek akkor sem, ha a registry-ben még van korábbi érték ([`MetricPolling`](./schema.md#5-metricpolling--rendszeresemény-mintavételezés)).
 - Azonos `ZIndex` esetén a kisebb `Id` kerül előbb (alulra), így a sorrend minden hívásnál ugyanaz.
+- A kizáró csoport neve trimmelve, kis- és nagybetűtől függetlenül számít (a „Fire” és a „fire ” ugyanaz a csoport), az üres vagy csak szóközből álló név pedig csoport nélküli, ahogy a validátor is kezeli. A tároló betöltéskor is normalizál, mint mentéskor, így egy kívülről szerkesztett adatbázisban is ez érvényes.
 
 A kiértékelés a pillanatképen, a motor zárján kívül fut, mert a pillanatkép a csere után sem változik.
 

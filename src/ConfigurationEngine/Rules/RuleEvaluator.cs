@@ -16,7 +16,8 @@ internal static class RuleEvaluator
     /// <item>csak a bekapcsolt szabályok, bekapcsolt mintavételezésű metrikával;</item>
     /// <item>a metrikához még nem érkezett adat: a szabály nem teljesül;</item>
     /// <item>kizáró csoportonként csak a legnagyobb <see cref="BehaviorRule.Priority"/>-jú teljesülő szabály marad
-    /// (egyenlőségnél a kisebb <see cref="BehaviorRule.Id"/>); a csoport nélküliek mind megmaradnak.</item>
+    /// (egyenlőségnél a kisebb <see cref="BehaviorRule.Id"/>); a csoport nélküliek mind megmaradnak. A csoportnév
+    /// trimmelve, kis- és nagybetűtől függetlenül számít; az üres vagy csak szóközből álló név csoport nélküli.</item>
     /// </list>
     /// </summary>
     /// <param name="candidates">A kiértékelendő elemek; mindegyikhez <paramref name="ruleOf"/> adja a szabályt.</param>
@@ -35,7 +36,7 @@ internal static class RuleEvaluator
         ArgumentNullException.ThrowIfNull(disabledMetrics);
 
         var active = new List<T>();
-        var groupWinners = new Dictionary<string, int>(StringComparer.Ordinal);
+        var groupWinners = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var candidate in candidates)
         {
@@ -46,11 +47,15 @@ internal static class RuleEvaluator
                 continue;
             }
 
-            if (rule.ExclusiveGroup is not { } group)
+            // A validátorhoz igazodva: a betöltés normalizál, de a kiértékelés bármilyen tárolóval helyes marad.
+            if (string.IsNullOrWhiteSpace(rule.ExclusiveGroup))
             {
                 active.Add(candidate);
+                continue;
             }
-            else if (!groupWinners.TryGetValue(group, out int index))
+
+            string group = rule.ExclusiveGroup.Trim();
+            if (!groupWinners.TryGetValue(group, out int index))
             {
                 groupWinners[group] = active.Count;
                 active.Add(candidate);
