@@ -145,7 +145,8 @@ public class Animation : IMutableAnimation
 
     /// <summary>
     /// Lecseréli az animáció képkockáit és a skálázott méretét (pl. amikor a Config menüben
-    /// új animációt töltenek fel vagy újraméretezik a bitmapeket).
+    /// új animációt töltenek fel vagy újraméretezik a bitmapeket). Azonos képkockaszámnál (újraméretezés) a
+    /// lejátszás ott folytatódik, ahol tartott; eltérőnél az első képkockától indul.
     /// </summary>
     public void SetFrames(IReadOnlyList<BitmapSource> frames, int width, int height)
     {
@@ -154,11 +155,15 @@ public class Animation : IMutableAnimation
 
         lock (_syncRoot)
         {
+            if (frames.Count != _frames.Count)
+            {
+                _currentFrameIndex = 0;
+                _elapsedSeconds = 0;
+            }
+
             _frames = frames;
             _width = width > 0 ? width : _width;
             _height = height > 0 ? height : _height;
-            _currentFrameIndex = 0;
-            _elapsedSeconds = 0;
         }
     }
 

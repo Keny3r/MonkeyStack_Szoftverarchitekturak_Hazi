@@ -25,7 +25,8 @@ public interface IMutableAnimation : IAnimation
     void SetSize(int width, int height);
 
     /// <summary>
-    /// Lecseréli az animáció képkockáit és a skálázott méretét (pl. újraskálázott képkockák esetén).
+    /// Lecseréli az animáció képkockáit és a skálázott méretét (pl. újraskálázott képkockák esetén). Azonos
+    /// képkockaszámnál a lejátszás ott folytatódik, ahol tartott.
     /// </summary>
     void SetFrames(IReadOnlyList<BitmapSource> frames, int width, int height);
 

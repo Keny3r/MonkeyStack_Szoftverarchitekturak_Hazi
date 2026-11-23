@@ -82,6 +82,8 @@ public sealed class SqliteConfigurationStore : IConfigurationStore
             _gate.Release();
         }
 
+        // Mint mentéskor: egy kívülről szerkesztett adatbázisban is trimmelt nevek, az üres kizáró csoport null.
+        ModelCopies.Normalize(stored);
         return await RemoveInvalidItemsAsync(stored, wasReset, cancellationToken).ConfigureAwait(false);
     }
 

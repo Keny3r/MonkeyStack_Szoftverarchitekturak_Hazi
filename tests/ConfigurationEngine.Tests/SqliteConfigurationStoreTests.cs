@@ -245,6 +245,21 @@ public sealed class SqliteConfigurationStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task Load_NormalizesExternallyEditedText()
+    {
+        var store = new SqliteConfigurationStore(_databasePath);
+        await store.SaveAsync(TestData.ValidConfiguration());
+        Execute("UPDATE BehaviorRule SET ExclusiveGroup = '  ' WHERE Name = 'Pizsama'");
+        Execute("UPDATE BehaviorRule SET ExclusiveGroup = 'fire ', Name = ' Kis tűz ' WHERE Name = 'Kis tűz'");
+
+        var result = await store.LoadAsync();
+
+        Assert.Empty(result.DroppedItems);
+        Assert.Null(result.Data.BehaviorRules.Single(r => r.Name == "Pizsama").ExclusiveGroup);
+        Assert.Equal("fire", result.Data.BehaviorRules.Single(r => r.Name == "Kis tűz").ExclusiveGroup);
+    }
+
+    [Fact]
     public async Task Load_InvalidSourceAlsoDropsItsDependents()
     {
         var store = new SqliteConfigurationStore(_databasePath);
