@@ -23,3 +23,4 @@ A karakter overlay logikája.
 
 - [Animáció modell és View](../mvc_architecture.md#animáció)
 - [Karakter és Fizika MVC terv](../mvc_architecture.md#karakter-és-fizika)
+- [Belső komponens felbontás és architektúra terv](./architecture.md)
