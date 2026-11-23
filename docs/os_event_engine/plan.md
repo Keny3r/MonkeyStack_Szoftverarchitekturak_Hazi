@@ -164,7 +164,7 @@ A [patterns.md](../patterns.md) mintái közül az alábbiakat használjuk. Mind
 ### 3.1 Szolgáltatáshozzáférés és -konfiguráció
 
 #### ✅ Wrapper Facade – natív Win32 API-k
-- **Hol:** `Native/NativeMethods.cs` (nyers `[LibraryImport]`), és erre épülnek típusos, objektumorientált burkolók: `CpuSource`, `MemorySource`, `BatterySource`, `InactivitySource`, `WindowCountSource`.
+- **Hol:** `Native/NativeMethods.cs` (nyers `[DllImport]`), erre épül a `Win32System` és a `WindowEnumerator`, és ezeket használják a típusos források: `CpuSource`, `MemorySource`, `BatterySource`, `InactivitySource`, `WindowCountSource`.
 - **Miért:** a C-stílusú API-k (`GetSystemTimes`, `GlobalMemoryStatusEx`, `GetSystemPowerStatus`, `GetLastInputInfo`, `EnumWindows`, `DwmGetWindowAttribute`) hibakezelése, struktúra-méretezése és `FILETIME` aritmetikája így egy helyre kerül. A felsőbb rétegek csak `int? Sample()`-t látnak. Ez teszi lehetővé a natív hívás nélküli unit tesztet (NFR-4). Az [MVC terv](../mvc_architecture.md#alkalmazott-architektúrális-minták) is ezt a mintát rendeli az `OsEventMonitorService`-hez.
 
 #### ✅ Component Configurator – futás közben (újra)konfigurálható monitorok
@@ -380,11 +380,12 @@ OsEventEngine/
 │  └─ CpuSource.cs, MemorySource.cs, DiskSource.cs, BatterySource.cs,
 │     WindowCountSource.cs, TimeSource.cs, InactivitySource.cs        (Wrapper Facade)
 ├─ Native/
-│  ├─ NativeMethods.cs             [LibraryImport] deklarációk, struktúrák
+│  ├─ NativeMethods.cs             [DllImport] deklarációk, struktúrák
+│  ├─ Win32System.cs, WindowEnumerator.cs   típusos burkolók (Wrapper Facade)
 │  └─ Win32EventReactor.cs         (2. fázis) Reactor
 ├─ Simulation/
 │  ├─ SourceMode.cs, MetricDescriptor.cs, ISimulationControl.cs
-│  ├─ SimulatedSource.cs, SwitchableSource.cs                          (Strategy + Proxy)
+│  ├─ SwitchableSource.cs          élő/szimulált forrás egyben (Strategy + Proxy, ISimulatable)
 │  └─ SimulationController.cs
 ├─ Pipeline/
 │  ├─ IEventInterceptor.cs, InterceptorChain.cs                        (Interceptor)
@@ -396,7 +397,7 @@ OsEventEngine/
 ├─ Platforms/
 │  └─ Win32PlatformProvider.cs     IPlatformProvider megvalósítása (M11, platform_provider_proposal.md)
 └─ ViewModels/
-   └─ OsMockViewModel.cs, MetricRowViewModel.cs, ObservableObject.cs, RelayCommand.cs
+   └─ OsMockViewModel.cs, MetricRowViewModel.cs, ObservableObject.cs (+ RelayCommand)
 ```
 
 Láthatóság: **publikus** csak az `OsEventMonitorService`, `OsEventEngineOptions`, `MonitorOptions`, `MetricCatalog`, `MonitorStatus`, `SourceMode`, `MetricDescriptor`, `ISimulationControl` és a `MainWindow`. Minden más `internal`. Tesztekhez: `[assembly: InternalsVisibleTo("OsEventEngine.Tests")]`.
@@ -541,17 +542,17 @@ Elfogadási kritérium: minden unit teszt zöld, és standalone futásnál a CPU
 
 Minden lépés külön commit / PR. A zárójelben a lefedett minták. Az M1–M7 lépések **csak a saját komponensünket** (`src/OsEventEngine`, `tests/OsEventEngine.Tests`) érintik.
 
-- [ ] **M1 – Alapok:** `MetricSample`, `IMetricSource`, `NativeMethods`, 7 élő forrás (*Wrapper Facade*).
-- [ ] **M2 – Monitorok:** `MetricMonitor` (PeriodicTimer + `TriggerNow`), `MonitorRepository`, `OsEventEngineOptions` (*Component Configurator*, *Extension Interface*).
-- [ ] **M3 – Lánc és kiküldés:** `Channel`, `InterceptorChain` + 4 interceptor, `EventDispatcher` → `OsEventNotifier.Notify…Changed`, `MetricSnapshotStore` (*Half-Sync/Half-Async*, *Interceptor*, *Monitor Object*, *Thread-Safe Interface*, *Scoped Locking*).
-- [ ] **M4 – `OsEventMonitorService` kiépítése:** `Start` / `Reconfigure` / `Dispose` / `GetSnapshot`, a meglévő tagok megtartásával (5.1 táblázat), standalone `App.OnStartup` naplózó feliratkozóval (*Facade*).
-- [ ] **M5 – Szimuláció:** `SimulatedSource`, `SwitchableSource`, `SimulationController`, `ISimulationControl`, `IsMockModeEnabled` átkötése (*Strategy*, *Proxy*, *Active Object* jelleg).
-- [ ] **M6 – OS Mock View:** `MainWindow` + `OsMockViewModel`, presetek (*MVC/MVVM*).
-- [ ] **M7 – Tesztek:** `OsEventEngine.Tests` projekt, a 8. fejezet szerint.
+- [x] **M1 – Alapok:** `MetricSample`, `IMetricSource`, `NativeMethods`, 7 élő forrás (*Wrapper Facade*).
+- [x] **M2 – Monitorok:** `MetricMonitor` (periodikus ciklus + `TriggerNow`; `Task.Delay(TimeProvider)` + ébresztő csatorna, mert a `PeriodicTimer` nem ébreszthető idő előtt), `MonitorRepository`, `OsEventEngineOptions` (*Component Configurator*, *Extension Interface*).
+- [x] **M3 – Lánc és kiküldés:** `Channel`, `InterceptorChain` + 4 interceptor, `EventDispatcher` → `OsEventNotifier.Notify…Changed`, `MetricSnapshotStore` (*Half-Sync/Half-Async*, *Interceptor*, *Monitor Object*, *Thread-Safe Interface*, *Scoped Locking*).
+- [x] **M4 – `OsEventMonitorService` kiépítése:** `Start` / `Reconfigure` / `Dispose` / `GetSnapshot` / `GetMonitorStatus` / `UsePollingSettings` (az M8 szolgáltató-oldala is), a meglévő tagok megtartásával (5.1 táblázat), standalone `App.OnStartup` naplózó feliratkozóval (*Facade*).
+- [x] **M5 – Szimuláció:** `SwitchableSource` (a külön `SimulatedSource` beleolvadt), `SimulationController`, `ISimulationControl`, `IsMockModeEnabled` átkötése (*Strategy*, *Proxy*, *Active Object* jelleg).
+- [x] **M6 – OS Mock View:** `MainWindow` + `OsMockViewModel`, presetek (*MVC/MVVM*).
+- [x] **M7 – Tesztek:** `tests/OsEventEngine.Tests` (xUnit, `FakeTimeProvider`, hamis források; 37 teszt, natív hívás nélkül). A CI minden PR-on futtatja őket (`dotnet test MonkeyStack.slnx`).
 - [ ] **M8 – Integráció (elfogadva a #3-ban):** `Start()` / `Dispose()` a `CharacterEngine` `App`-ban (Gergő és Frink Dávid), `UsePollingSettings` bekötése a Core-beli `IPollingSettingsProvider`-rel (*Component Configurator*).
 - [ ] **M9 – Reactor (opcionális, 2. fázis):** `Win32EventReactor` (WinEvent hook, `WM_POWERBROADCAST`, `WM_TIMECHANGE`) → `TriggerNow` (*Reactor*, *DCLO/Lazy*).
 - [ ] **M10 – Dokumentáció:** a ténylegesen megvalósult mintákat új fájlban dokumentálni (`docs/os_event_engine/patterns_applied.md`), osztály- és szekvenciadiagramokkal, a [Szótárra](../../README.md#szótár) hivatkozva.
-- [ ] **M11 – Platform szolgáltató (elfogadva a #3-ban, A opció):** `IPlatformProvider` a Core-ba (egyeztetve), `Win32PlatformProvider` az OS motorban, a [platform-javaslat](./platform_provider_proposal.md) döntései szerint (*Wrapper Facade*, *Reactor*, *Half-Sync/Half-Async*).
+- [ ] **M11 – Platform szolgáltató (elfogadva a #3-ban, A opció):** ✅ `IPlatformProvider` szerződés a Core-ban (#7); `Win32PlatformProvider` az OS motorban, a [platform-javaslat](./platform_provider_proposal.md) döntései szerint (*Wrapper Facade*, *Reactor*, *Half-Sync/Half-Async*).
 
 Az M1–M7 után a komponens önállóan demózható.
 
@@ -569,7 +570,7 @@ Az M1–M7 után a komponens önállóan demózható.
 | Tartományok és alapintervallumok egy helyen | Konfigurációs motor (Levente) | ⏳ Levente javaslata: a `MetricCatalog` és a `ConfigurationLimits` közös részét a #3 merge után a Core-ba, a `Metric` mellé. | Közös PR. |
 | Mock út és a `Notify…` hívások | Frink Dávid ([mvc_architecture.md](../mvc_architecture.md#os-események)) | ✅ Elfogadva: a View a `Simulation`-t hívja, nem közvetlenül a `Notify…Changed`-et ([5.1](#51-szimuláció-működése)). Az `IsMockModeEnabled` kényelmi kapcsoló marad. | Az MVC dokumentum frissítése (Frink Dávid). |
 | Minták szóhasználata | Mindenki | ✅ Elfogadva: C# esemény = Observer; Reactor = Win32 értesítések demultiplexálása ([3. fejezet](#3-alkalmazott-architekturális-minták)). | Az MVC minta-táblázat Reactor sorának pontosítása. |
-| Platformok (ablakperem, takarás, fullscreen) | Karakter motor (Gergő, Frink Dávid) | ✅ Elfogadva, A opció: `IPlatformProvider` a Core-ba, a megvalósítás az OS motorban ([platform-javaslat](./platform_provider_proposal.md#0-döntések)). | Nálunk M11. |
+| Platformok (ablakperem, takarás, fullscreen) | Karakter motor (Gergő, Frink Dávid) | ✅ Elfogadva, A opció. A szerződés a #7-tel a Core-ban (`IPlatformProvider`, `PlatformSnapshot`, `ScreenArea`, `ScreenRect`), a megvalósítás az OS motorban ([platform-javaslat](./platform_provider_proposal.md#0-döntések)). | Nálunk M11. |
 | Új metrika felvétele | Mindenki (`MonkeyStack.Core`) | Folyamat: új `*EventData` + `OsEventDataRegistry` mező + `IOsEventNotifier` esemény és `Notify…` metódus + `Metric` érték + coordinator feliratkozás. | Egyeztetés kell. |
 | Projekt típusa | Mindenki | Marad: az `OsEventEngine` WinExe, a `CharacterEngine` hivatkozik rá (az [MVC terv](../mvc_architecture.md#alapelvek-közös-modell-és-független-view-k) standalone F5 elve). | – |
 
