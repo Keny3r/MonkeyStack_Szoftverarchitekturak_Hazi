@@ -21,7 +21,7 @@ public interface IConfigurationEditor
     /// A tárolt konfiguráció szerkeszthető másolata, a betöltéskor kihagyott elemekkel
     /// (<see cref="ConfigurationLoadResult.DroppedItems"/>) és az adatbázis visszaállításának jelzésével
     /// (<see cref="ConfigurationLoadResult.DatabaseWasReset"/>). Az ablak megnyitásakor, Elvetéskor
-    /// és mentés után hívja a View.
+    /// és mentés után hívja a View. Minden hívás új, független másolatot ad, így a View szabadon módosíthatja.
     /// </summary>
     Task<ConfigurationLoadResult> LoadAsync(CancellationToken cancellationToken = default);
 
@@ -83,4 +83,17 @@ public interface IConfigurationEditor
     /// ezután a motor már nem lépteti őket.
     /// </summary>
     void ReleasePreviewAnimations();
+
+    /// <summary>
+    /// A futó konfiguráció be nem töltött animációs forrásai (pl. a fájlt mentés óta törölték). A View ezzel jelezheti,
+    /// hogy egy mentett forrás most a szállított alapanimációval vagy a régi képkockákkal fut.
+    /// </summary>
+    IReadOnlyList<MediaLoadFailure> MediaLoadFailures { get; }
+
+    /// <summary>
+    /// A forrás képének tényleges mérete pixelben (<see cref="IMediaValidator.ReadImageSizeAsync"/>), a háttérben. A sprite
+    /// sheet rácsa mellett mutatható (view.md, "4. Animációs források"), eltérő rácsnál is.
+    /// </summary>
+    /// <exception cref="MediaLoadException">Ha a kép nem olvasható.</exception>
+    Task<PixelSize> ReadImageSizeAsync(AnimationSource source, CancellationToken cancellationToken = default);
 }

@@ -1,6 +1,7 @@
 namespace ConfigurationEngine.Tests.View;
 
 using System.IO;
+using ConfigurationEngine.Media;
 using ConfigurationEngine.Model;
 using ConfigurationEngine.Storage;
 using ConfigurationEngine.Validation;
@@ -300,6 +301,11 @@ public sealed class ConfigurationWindowViewModelTests : IDisposable
         public void ReleasePreviewAnimation(IAnimation preview) => inner.ReleasePreviewAnimation(preview);
 
         public void ReleasePreviewAnimations() => inner.ReleasePreviewAnimations();
+
+        public IReadOnlyList<MediaLoadFailure> MediaLoadFailures => inner.MediaLoadFailures;
+
+        public Task<PixelSize> ReadImageSizeAsync(AnimationSource source, CancellationToken cancellationToken = default) =>
+            inner.ReadImageSizeAsync(source, cancellationToken);
     }
 
     private sealed class TestDialogs : IUserDialogs

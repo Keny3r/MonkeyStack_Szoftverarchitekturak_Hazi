@@ -3,6 +3,7 @@ using System.Windows;
 using ConfigurationEngine.View;
 using ConfigurationEngine.View.Fakes;
 using MonkeyStack.Core.Configuration;
+using MonkeyStack.Core.Timing;
 
 namespace ConfigurationEngine;
 
@@ -10,16 +11,17 @@ namespace ConfigurationEngine;
 /// A Konfigurációs motor View ablaka, a konfigurációs ablak (docs/configuration_engine/view.md).
 /// A motort csak az <see cref="IConfigurationEditor"/> homlokzaton keresztül éri el (Wrapper Facade, Extension Interface):
 /// integrált futásnál a host a közös <c>ConfigurationService</c> példányt adja át <see cref="IConfigurationEditor"/>-ként,
-/// önálló (F5) futásnál az ablak maga hoz létre egyet (view.md, "Az ablak létrehozása").
+/// önálló (F5) futásnál az ablak maga hoz létre egyet, a saját léptetőjével (<see cref="FrameLoop"/>), hogy az előnézetek
+/// ott is lépjenek, és bezáráskor mindkettőt eldobja (view.md, "Az ablak létrehozása").
 /// </summary>
 public partial class MainWindow : Window
 {
     private readonly IDisposable? _ownedEditor;
     private bool _closeConfirmed;
 
-    /// <summary>Önálló (F5) indítás saját <c>ConfigurationService</c> példánnyal.</summary>
+    /// <summary>Önálló (F5) indítás saját <c>ConfigurationService</c> példánnyal és saját léptetővel.</summary>
     public MainWindow()
-        : this(ResolveEditor(new ConfigurationService()))
+        : this(CreateStandaloneEditor())
     {
     }
 
@@ -31,12 +33,12 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Átmeneti, a host mostani hívásához (<c>CharacterEngine</c> <c>App.OpenConfigurationWindow</c>): a kapott
-    /// szolgáltatást <see cref="IConfigurationEditor"/>-ként használja. Amíg a <c>ConfigurationService</c> nem valósítja
-    /// meg a homlokzatot, az ablak memóriában tároló minta szerkesztővel (<see cref="FakeConfigurationEditor"/>) fut,
-    /// és ezt a címsorban jelzi.
+    /// szolgáltatást <see cref="IConfigurationEditor"/>-ként használja; <c>null</c> esetén önálló futásként indul. A
+    /// <c>ConfigurationService</c> megvalósítja a homlokzatot; ha egy más <see cref="IConfigurationService"/> nem, az ablak
+    /// memóriában tároló minta szerkesztővel (<see cref="FakeConfigurationEditor"/>) fut, és ezt a címsorban jelzi.
     /// </summary>
     public MainWindow(IConfigurationService? configurationService)
-        : this(ResolveEditor(configurationService ?? new ConfigurationService()))
+        : this(configurationService is null ? CreateStandaloneEditor() : ResolveEditor(configurationService))
     {
     }
 
@@ -48,7 +50,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContext = ViewModel;
 
-        if (_ownedEditor is not null)
+        if (Editor is FakeConfigurationEditor)
         {
             Title += " – minta adatok (memóriában, nem tárolódik)";
         }
@@ -93,6 +95,15 @@ public partial class MainWindow : Window
         base.OnClosed(e);
     }
 
+    /// <summary>Önálló futás: saját szolgáltatás és léptető, amelyeket az ablak bezáráskor eldob.</summary>
+    private static (IConfigurationEditor Editor, IDisposable? Owned) CreateStandaloneEditor()
+    {
+        var frameLoop = new FrameLoop();
+        var service = new ConfigurationService(frameLoop);
+        frameLoop.Start();
+        return (service, new OwnedServices(service, frameLoop));
+    }
+
     private static (IConfigurationEditor Editor, IDisposable? Owned) ResolveEditor(IConfigurationService service)
     {
         if (service is IConfigurationEditor editor)
@@ -102,5 +113,15 @@ public partial class MainWindow : Window
 
         var fake = new FakeConfigurationEditor();
         return (fake, fake);
+    }
+
+    /// <summary>Az önálló futás saját szolgáltatása és léptetője: előbb a szolgáltatás iratkozik le, utána áll le a léptető.</summary>
+    private sealed class OwnedServices(ConfigurationService service, FrameLoop frameLoop) : IDisposable
+    {
+        public void Dispose()
+        {
+            service.Dispose();
+            frameLoop.Dispose();
+        }
     }
 }

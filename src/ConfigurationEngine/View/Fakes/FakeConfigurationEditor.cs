@@ -212,6 +212,15 @@ internal sealed class FakeConfigurationEditor : IConfigurationEditor, IDisposabl
         }
     }
 
+    /// <summary>A minta szerkesztő nem tölt be futó konfigurációt, ezért nincs be nem töltött forrás.</summary>
+    public IReadOnlyList<MediaLoadFailure> MediaLoadFailures => [];
+
+    public Task<PixelSize> ReadImageSizeAsync(AnimationSource source, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return _mediaValidator.ReadImageSizeAsync(source.Copy(), cancellationToken);
+    }
+
     public void Dispose()
     {
         lock (_syncRoot)
