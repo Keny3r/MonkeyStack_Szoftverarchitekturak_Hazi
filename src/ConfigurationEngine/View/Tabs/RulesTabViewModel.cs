@@ -162,13 +162,16 @@ public sealed class RulesTabViewModel : TabViewModel
         Owner.NotifyEdited();
     }
 
-    /// <summary>A csoportnevek helyben frissítése, hogy a szerkeszthető legördülő lista szövege ne ugráljon.</summary>
+    /// <summary>
+    /// A csoportnevek helyben frissítése, hogy a szerkeszthető legördülő lista szövege ne ugráljon. A motorhoz
+    /// igazodva a kis- és nagybetű nem számít (<c>Fire</c> és <c>fire</c> ugyanaz a csoport), ezért egyszer szerepel.
+    /// </summary>
     private void SyncGroupNames()
     {
         var names = Rules
             .Where(r => r != SelectedRule && !string.IsNullOrWhiteSpace(r.Rule.ExclusiveGroup))
             .Select(r => r.Rule.ExclusiveGroup!.Trim())
-            .Distinct(StringComparer.Ordinal)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .Order(StringComparer.CurrentCulture)
             .ToList();
         if (names.SequenceEqual(GroupNames))

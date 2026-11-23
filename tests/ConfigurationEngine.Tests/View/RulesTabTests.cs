@@ -185,6 +185,18 @@ public sealed class RulesTabTests : IDisposable
     }
 
     [Fact]
+    public async Task GroupNames_DifferingOnlyInCase_AreOfferedOnce()
+    {
+        await _viewModel.LoadAsync();
+        Row("Nagy tűz").ExclusiveGroup = "Fire";
+
+        Tab.SelectedRule = Row("Pizsama");
+
+        var name = Assert.Single(Tab.GroupNames);
+        Assert.Equal("fire", name, ignoreCase: true);
+    }
+
+    [Fact]
     public async Task EnablingFromTheList_GoesIntoTheCopy()
     {
         await _viewModel.LoadAsync();
