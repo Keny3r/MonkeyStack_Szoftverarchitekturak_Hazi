@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Windows;
 using ConfigurationEngine.View;
 using ConfigurationEngine.View.Fakes;
@@ -101,6 +102,13 @@ public partial class MainWindow : Window
         var frameLoop = new FrameLoop();
         var service = new ConfigurationService(frameLoop);
         frameLoop.Start();
+
+        // A mentett karakterméret és a be nem töltött források az előnézetekhez kellenek; a View a saját adatait külön tölti be.
+        _ = service.InitializeAsync().ContinueWith(
+            t => Trace.TraceError($"A konfiguráció betöltése nem sikerült: {t.Exception}"),
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted,
+            TaskScheduler.Default);
         return (service, new OwnedServices(service, frameLoop));
     }
 
