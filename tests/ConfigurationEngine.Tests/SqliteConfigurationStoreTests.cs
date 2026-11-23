@@ -1,6 +1,7 @@
 namespace ConfigurationEngine.Tests;
 
 using System.IO;
+using ConfigurationEngine.Media;
 using ConfigurationEngine.Model;
 using ConfigurationEngine.Storage;
 using ConfigurationEngine.Validation;
@@ -418,5 +419,8 @@ public sealed class SqliteConfigurationStoreTests : IDisposable
                 : [];
             return Task.FromResult(errors);
         }
+
+        public Task<PixelSize> ReadImageSizeAsync(AnimationSource source, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 }

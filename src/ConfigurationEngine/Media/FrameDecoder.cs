@@ -131,6 +131,32 @@ internal static class FrameDecoder
         }
     }
 
+    /// <summary>
+    /// A forrás képének mérete pixelben, a képkockák dekódolása nélkül: GIF-nél a vászon, sprite sheetnél a teljes
+    /// kép, képsorozat-mappánál az első kép mérete. A rácsot nem ellenőrzi, így eltérő rácsnál is megadja a méretet.
+    /// </summary>
+    /// <param name="files">A forrás fájljai (<see cref="MediaFiles.List"/>).</param>
+    /// <exception cref="MediaLoadException">Ha a kép nem olvasható vagy túllépi a korlátokat.</exception>
+    public static PixelSize ReadImageSize(AnimationSource source, IReadOnlyList<string> files)
+    {
+        try
+        {
+            if (source.SourceType == AnimationSourceType.Gif)
+            {
+                OpenDecoder(files[0], out var gif);
+                return new PixelSize(gif.Width, gif.Height);
+            }
+
+            var image = OpenImage(files[0]);
+            CheckImageSize(image.PixelWidth, image.PixelHeight, Path.GetFileName(files[0]));
+            return new PixelSize(image.PixelWidth, image.PixelHeight);
+        }
+        catch (Exception ex) when (ex is not (MediaLoadException or OperationCanceledException or OutOfMemoryException))
+        {
+            throw PathError("A kép nem dekódolható, a fájl sérült vagy nem támogatott formátumú.", ex);
+        }
+    }
+
     private static void DecodeSpriteSheet(
         AnimationSource source,
         string file,
