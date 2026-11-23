@@ -171,6 +171,33 @@ public sealed class ConfigurationEditorTests : IDisposable
     }
 
     [Fact]
+    public async Task SizeChangeWhileLoading_GivesThePreviewFramesAtTheNewSize()
+    {
+        _loader.Gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var creating = Editor.CreatePreviewAnimationAsync(Walk, framesPerSecond: 4);
+
+        Editor.SetCharacterSize(200, 150);
+        _loader.Gate.SetResult();
+        var preview = await creating;
+
+        Assert.Equal((200, 150), (preview.GetWidth(), preview.GetHeight()));
+        await WaitUntil(() => preview.CurrentFrame?.PixelWidth == 200);
+    }
+
+    [Fact]
+    public async Task InitialLoad_ResizesEarlierPreviewsToTheSavedSize()
+    {
+        _store.Data.Character.CharacterWidth = 180;
+        _store.Data.Character.CharacterHeight = 140;
+        var preview = await Editor.CreatePreviewAnimationAsync(Walk, framesPerSecond: 4);
+
+        await _service.InitializeAsync();
+
+        Assert.Equal((180, 140), (preview.GetWidth(), preview.GetHeight()));
+        await WaitUntil(() => preview.CurrentFrame?.PixelWidth == 180);
+    }
+
+    [Fact]
     public async Task FailingSource_Throws_AndIsRetriedNextTime()
     {
         _loader.Failing.Add("walk.gif");
