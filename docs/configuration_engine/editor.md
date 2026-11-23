@@ -66,7 +66,7 @@ flowchart LR
 ```
 
 - **Külön példányok:** a futó konfigurációtól függetlenek, ezért az újratöltés (pl. mentés után) nem érinti őket; csak a `ReleasePreviewAnimation` és a `ReleasePreviewAnimations` dobja el őket. Eldobás után nem lépnek.
-- **Megosztott képkockák:** ugyanannak a forrásnak (a betöltést meghatározó mezők: típus, útvonal, rács) a képkockái méretenként egyszer töltődnek be. Ha egy betöltés több kérést szolgál ki, az egyik kérő megszakítása csak a saját várakozását állítja le. A már egyetlen előnézet által sem használt képkockák eldobódnak.
+- **Megosztott képkockák:** ugyanannak a forrásnak (a betöltést meghatározó mezők: típus, útvonal, rács) a képkockái méretenként egyszer töltődnek be. Ha egy betöltés több kérést szolgál ki, az egyik kérő megszakítása csak a saját várakozását állítja le. A már egyetlen előnézet által sem használt és senki által nem várt képkockák a következő sikeres előnézet-létrehozáskor dobódnak el, így a sebességváltás (a régi előnézet eldobása, majd új kérése) és a megszakított, majd megismételt kérés sem tölti be újra a forrást.
 - **Méretváltás:** az előnézetek azonnal az új méretet kapják (a régi képkockák nyújtva), és a háttérben az új méretű képkockák töltődnek be ugyanazokba a példányokba. Ha egy forrás az új méretre nem tölthető be, a régi képkockák maradnak.
 - **Hiba:** a nem betölthető forrásra `MediaLoadException`; a sikertelen betöltést a következő kérés újrapróbálja (pl. miután a felhasználó pótolta a fájlt).
 

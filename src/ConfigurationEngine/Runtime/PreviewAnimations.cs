@@ -10,8 +10,9 @@ using MonkeyStack.Core.Animation;
 /// <summary>
 /// A konfigurációs ablak előnézeti animációi (view.md, "Élő előnézet"): a futó konfigurációtól külön példányok, ezért
 /// az újratöltés nem érinti őket, csak az eldobás. Ugyanannak a forrásnak a képkockái méretenként megosztottak, így egy
-/// új előnézet (pl. sebességváltáskor) nem tölti be újra a forrást; a már egyetlen előnézet által sem használt
-/// képkockák eldobódnak. Szálbiztos (Monitor Object, Scoped Locking).
+/// új előnézet (pl. sebességváltáskor, a régi eldobása után) nem tölti be újra a forrást. A már egyetlen előnézet által
+/// sem használt és nem várt képkockák a következő sikeres előnézet-létrehozáskor dobódnak el. Szálbiztos (Monitor
+/// Object, Scoped Locking).
 /// </summary>
 internal sealed class PreviewAnimations : IDisposable
 {
@@ -20,6 +21,7 @@ internal sealed class PreviewAnimations : IDisposable
     private readonly CancellationTokenSource _lifetime = new();
     private readonly Dictionary<IMutableAnimation, Entry> _entries = new(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<(string Media, int Width, int Height), Task<IReadOnlyList<BitmapSource>>> _frames = [];
+    private readonly Dictionary<(string Media, int Width, int Height), int> _waiting = [];
     private int _width;
     private int _height;
     private bool _disposed;
@@ -63,10 +65,22 @@ internal sealed class PreviewAnimations : IDisposable
             ObjectDisposedException.ThrowIf(_disposed, this);
             (width, height) = (_width, _height);
             loading = Frames(snapshot, media, width, height);
+            _waiting[(media, width, height)] = _waiting.GetValueOrDefault((media, width, height)) + 1;
         }
 
-        // A megosztott betöltést egy hívó megszakítása nem állíthatja le, csak a saját várakozását.
-        var frames = await loading.WaitAsync(cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<BitmapSource> frames;
+        try
+        {
+            // A megosztott betöltést egy hívó megszakítása nem állíthatja le, csak a saját várakozását.
+            frames = await loading.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            lock (_syncRoot)
+            {
+                StopWaiting((media, width, height));
+            }
+        }
 
         bool stale;
         Animation preview;
@@ -75,6 +89,7 @@ internal sealed class PreviewAnimations : IDisposable
             ObjectDisposedException.ThrowIf(_disposed, this);
             preview = new Animation(frames, width, height, framesPerSecond);
             _entries[preview] = new Entry(snapshot, media) { FramesSize = (width, height) };
+            DropUnusedFrames();
             stale = (width, height) != (_width, _height);
             if (stale)
             {
@@ -90,14 +105,17 @@ internal sealed class PreviewAnimations : IDisposable
         return preview;
     }
 
-    /// <summary>Eldobja az előnézetet; ezután nem léptetődik. Az ismeretlen vagy már eldobott előnézetet figyelmen kívül hagyja.</summary>
+    /// <summary>
+    /// Eldobja az előnézetet; ezután nem léptetődik. A képkockái a következő előnézetig megmaradnak, így ugyanannak a
+    /// forrásnak az azonnali újrakérése nem tölti be újra. Az ismeretlen vagy már eldobott előnézetet figyelmen kívül hagyja.
+    /// </summary>
     public void Release(IAnimation preview)
     {
         lock (_syncRoot)
         {
-            if (preview is IMutableAnimation animation && _entries.Remove(animation))
+            if (preview is IMutableAnimation animation)
             {
-                DropUnusedFrames();
+                _entries.Remove(animation);
             }
         }
     }
@@ -240,13 +258,29 @@ internal sealed class PreviewAnimations : IDisposable
         return loading;
     }
 
-    /// <summary>Elengedi azokat a képkockákat, amelyeket már egyetlen előnézet sem használ. Csak a zár alatt hívható.</summary>
+    /// <summary>Elengedi azokat a képkockákat, amelyeket már egyetlen előnézet sem használ, és senki sem vár. Csak a zár alatt hívható.</summary>
     private void DropUnusedFrames()
     {
         var used = _entries.Values.Select(e => e.Media).ToHashSet();
-        foreach (var key in _frames.Keys.Where(k => !used.Contains(k.Media)).ToList())
+        foreach (var key in _frames.Keys.Where(k => !used.Contains(k.Media) && !_waiting.ContainsKey(k)).ToList())
         {
             _frames.Remove(key);
+        }
+    }
+
+    /// <summary>Egy <see cref="CreateAsync"/> hívó már nem vár a betöltésre. Csak a zár alatt hívható.</summary>
+    private void StopWaiting((string Media, int Width, int Height) key)
+    {
+        if (_waiting.TryGetValue(key, out int count))
+        {
+            if (count > 1)
+            {
+                _waiting[key] = count - 1;
+            }
+            else
+            {
+                _waiting.Remove(key);
+            }
         }
     }
 

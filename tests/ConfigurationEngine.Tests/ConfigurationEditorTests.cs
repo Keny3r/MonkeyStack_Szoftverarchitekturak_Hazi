@@ -66,6 +66,45 @@ public sealed class ConfigurationEditorTests : IDisposable
     }
 
     [Fact]
+    public async Task ReleaseThenCreate_OfSameSource_ReusesFrames()
+    {
+        var slow = await Editor.CreatePreviewAnimationAsync(Walk, framesPerSecond: 2);
+
+        // A View sebességváltáskor előbb eldobja a régi előnézetet, és csak utána kér újat.
+        Editor.ReleasePreviewAnimation(slow);
+        await Editor.CreatePreviewAnimationAsync(Walk, framesPerSecond: 8);
+
+        Assert.Equal(1, _loader.CallsFor("walk.gif"));
+    }
+
+    [Fact]
+    public async Task CancelledRequest_LeavesSharedLoadForTheNextRequest()
+    {
+        _loader.Gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cancel = new CancellationTokenSource();
+        var cancelled = Editor.CreatePreviewAnimationAsync(Walk, framesPerSecond: 2, cancel.Token);
+
+        cancel.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cancelled);
+        _loader.Gate.SetResult();
+        await Editor.CreatePreviewAnimationAsync(Walk, framesPerSecond: 8);
+
+        Assert.Equal(1, _loader.CallsFor("walk.gif"));
+    }
+
+    [Fact]
+    public async Task UnusedFrames_AreDroppedWhenAnotherPreviewIsCreated()
+    {
+        var walk = await Editor.CreatePreviewAnimationAsync(Walk, framesPerSecond: 4);
+
+        Editor.ReleasePreviewAnimation(walk);
+        await Editor.CreatePreviewAnimationAsync(Run(), framesPerSecond: 4);
+        await Editor.CreatePreviewAnimationAsync(Walk, framesPerSecond: 4);
+
+        Assert.Equal(2, _loader.CallsFor("walk.gif"));
+    }
+
+    [Fact]
     public async Task ReleasedPreview_IsNoLongerStepped_OthersAre()
     {
         var released = await Editor.CreatePreviewAnimationAsync(Walk, framesPerSecond: 4);
@@ -240,6 +279,9 @@ public sealed class ConfigurationEditorTests : IDisposable
         _service.ConfigurationChanged += (_, _) => tcs.TrySetResult();
         return tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
     }
+
+    private static AnimationSource Run() =>
+        new() { Id = 2, Name = "Futás", SourceType = AnimationSourceType.Gif, Path = "run.gif" };
 
     private static async Task WaitUntil(Func<bool> condition)
     {
