@@ -10,9 +10,9 @@ Ez a dokumentum a [Konfigurációs motor](../components.md#konfigurációs-motor
 |---|---|
 | [`ConfigurationService.cs`](../../src/ConfigurationEngine/ConfigurationService.cs) | Az [`IConfigurationService`](../../src/MonkeyStack.Core/Configuration/IConfigurationService.cs) megvalósítása: betöltés, újratöltés, méretváltás, léptetés, lekérdezések |
 | [`Rules/RuleEvaluator.cs`](../../src/ConfigurationEngine/Rules/RuleEvaluator.cs) | A szabályok kiértékelése egy registry-állapotra; állapot nélküli, tiszta függvények |
-| [`Runtime/AnimationSetBuilder.cs`](../../src/ConfigurationEngine/Runtime/AnimationSetBuilder.cs) | A betöltött konfigurációból felépíti az animációkat (betöltéskor és méretváltáskor) |
+| [`Runtime/AnimationSetBuilder.cs`](../../src/ConfigurationEngine/Runtime/AnimationSetBuilder.cs) | A betöltött konfigurációból felépíti az animációkat, méretváltáskor pedig betölti az új méretű képkockáikat |
 | [`Runtime/AnimationSet.cs`](../../src/ConfigurationEngine/Runtime/AnimationSet.cs) | A futó konfiguráció pillanatképe: animációk, szabályok, kikapcsolt metrikák, betöltési hibák |
-| [`Media/MediaLoadFailure.cs`](../../src/ConfigurationEngine/Media/MediaLoadFailure.cs) | Egy forrás, amely a felépítéskor nem töltődött be |
+| [`Media/MediaLoadFailure.cs`](../../src/ConfigurationEngine/Media/MediaLoadFailure.cs) | Egy forrás, amely a felépítéskor vagy a legutóbbi méretváltáskor nem töltődött be |
 | [`tests/ConfigurationEngine.Tests`](../../tests/ConfigurationEngine.Tests) | `RuleEvaluatorTests`, `ConfigurationServiceTests` |
 
 A paraméter nélküli konstruktor a felhasználó adatbázisát ([`SqliteConfigurationStore`](../../src/ConfigurationEngine/Storage/SqliteConfigurationStore.cs), gyors médiaellenőrzéssel) és a szállított képeket ([`FrameLoader`](../../src/ConfigurationEngine/Media/FrameLoader.cs)) használja. A konstruktor nem végez I/O-t, a konfiguráció az `InitializeAsync` hívásakor töltődik be. A tesztek a második konstruktorral saját tárolót és betöltőt adnak át.
@@ -54,7 +54,7 @@ sequenceDiagram
 
 A [séma szerint](./schema.md#animációk-előállítása) minden mozgásállapot és minden bekapcsolt szabály saját animációt kap a saját sebességével, a szabályok a saját `ZIndex`-ükkel is. A képkockák forrásonként egyszer töltődnek be, és az azonos forrású animációk megosztják őket. A kikapcsolt szabályok forrásait nem töltjük be.
 
-A forrásonkénti 64 MB-os keret ([Skálázás](./media.md#skálázás)) mellett az összes betöltött képkocka együtt legfeljebb 256 MB-ot foglalhat (`ConfigurationLimits.MediaMaxTotalLoadedBytes`), így sok nagy forrás sem foglalhat korlátlan memóriát. A mozgásállapotok töltődnek be először, utánuk a szabályok a konfiguráció sorrendjében; az a forrás, amely már nem fér bele, nem betölthetőnek számít. Újratöltés és méretváltás közben a régi animációk a cseréig a memóriában maradnak, ezért ilyenkor rövid ideig ennek a kétszerese is foglalt lehet.
+A forrásonkénti 64 MB-os keret ([Skálázás](./media.md#skálázás)) mellett az összes betöltött képkocka együtt legfeljebb 256 MB-ot foglalhat (`ConfigurationLimits.MediaMaxTotalLoadedBytes`), így sok nagy forrás sem foglalhat korlátlan memóriát. A mozgásállapotok töltődnek be először, utánuk a szabályok a konfiguráció sorrendjében; az a forrás, amely már nem fér bele, nem betölthetőnek számít. Újratöltés és méretváltás közben a régi képkockák a cseréig a memóriában maradnak, ezért ilyenkor rövid ideig ennek a kétszerese is foglalt lehet.
 
 Ha egy forrás nem tölthető be (pl. a fájlt a mentés óta törölték, a karakter méretén túl sok képkockát foglalna, vagy már nem fér bele az együttes keretbe):
 
@@ -87,10 +87,12 @@ A kiértékelés a pillanatképen, a motor zárján kívül fut, mert a pillanat
 A `SetCharacterSize` (és a `CharacterWidth`, `CharacterHeight` beállítása):
 
 1. a méretet a [`CharacterSettings`](./schema.md#4-charactersettings--karakter-beállítások) tartományára korlátozza; a nem pozitív érték nem változtat, a változatlan méret nem vált ki eseményt;
-2. a zár alatt minden animáció azonnal az új méretet kapja (`SetSize`), és tüzel a `ConfigurationChanged`;
-3. a háttérben az új méretre újraépíti az animációkat ugyanabból a konfigurációból, mint egy újratöltés (a tárolót nem olvassa újra), majd a csere után a `ConfigurationChanged` még egyszer tüzel.
+2. a zár alatt minden animáció azonnal az új méretet kapja (`SetSize`), és egyszer tüzel a `ConfigurationChanged`;
+3. a háttérben betölti a képkockákat az új méretre, ugyanabból a forrásból, amelyet az animáció most mutat, és ugyanazzal a memóriakerettel, mint a betöltés; majd a zár alatt ugyanazokba a példányokba cseréli őket (`IMutableAnimation.SetFrames`). Új pillanatkép és további esemény nincs.
 
-Amíg a 3. lépés tart, a régi képkockák az új méretre nyújtva látszanak. Mivel az újraépítés ugyanazokat a szabályokat követi, mint a betöltés, egy forrás, amely az új méreten túl sok képkockát foglalna, ugyanúgy a szállított alapanimációt kapja, illetve kimarad, és megjelenik a `MediaLoadFailures`-ben. Gyors egymás utáni méretváltásnál (pl. csúszka) az új méret megszakítja az előző, még futó újraépítést. A `SetCharacterSizeAsync` ugyanezt teszi, és a visszaadott feladat az újraépítés végén (vagy megszakításakor) fejeződik be.
+Mivel a példányok nem cserélődnek, a Karakter és a konfigurációs ablak által korábban lekérdezett animációk érvényesek maradnak, és a lejátszás ott folytatódik, ahol tartott (azonos képkockaszámnál a `SetFrames` megtartja az aktuális képkockát). Amíg a 3. lépés tart, a régi képkockák az új méretre nyújtva látszanak.
+
+Ha egy forrás az új méretre nem tölthető be (pl. túl sok képkockát foglalna, vagy már nem fér bele az együttes keretbe), az animációja a régi képkockákat mutatja tovább, nyújtva, és a forrás megjelenik a `MediaLoadFailures`-ben, amíg egy újabb méretváltás vagy újratöltés nem sikerül. Gyors egymás utáni méretváltásnál (pl. csúszka) az új méret megszakítja az előző, még futó újraskálázást. A `SetCharacterSizeAsync` ugyanezt teszi, és a visszaadott feladat az újraskálázás végén (vagy megszakításakor) fejeződik be.
 
 ---
 
@@ -99,9 +101,9 @@ Amíg a 3. lépés tart, a régi képkockák az új méretre nyújtva látszanak
 | Művelet | Szál | Megjegyzés |
 |---|---|---|
 | `GetMovementAnimation`, `GetOverlayAnimations`, `UpdateAnimations`, `SetCharacterSize` | bármelyik | rövid, a motor zárja alatt |
-| `InitializeAsync`, `ReloadAsync`, újraépítés méretváltáskor | háttérszál (`Task.Run`) | egymás után futnak (újratöltési zár); a hívó szál szinkronizációs környezetét nem használják, így a UI szálról blokkolva is várhatók |
+| `InitializeAsync`, `ReloadAsync`, újraskálázás méretváltáskor | háttérszál (`Task.Run`) | egymás után futnak (újratöltési zár); a hívó szál szinkronizációs környezetét nem használják, így a UI szálról blokkolva is várhatók |
 | `ConfigurationChanged` | a műveletet végző szál | sosem a motor zárja alatt; a feliratkozónak kell a UI szálra váltania. A feliratkozók egymástól függetlenül futnak: egy feliratkozó kivételét a motor naplózza, és nem teszi sikertelenné a már megtörtént cserét |
-| `Dispose` | bármelyik | leiratkozik a tárolóról, és megszakítja a folyamatban lévő munkát; utána már nem cserélődik a konfiguráció, és nem tüzel esemény |
+| `Dispose` | bármelyik | leiratkozik a tárolóról, megszakítja a folyamatban lévő munkát, és eldobja a megszakítási forrásokat; utána már nem cserélődik a konfiguráció és a képkockák, nem tüzel esemény, a `ReloadAsync` pedig `ObjectDisposedException`-t dob |
 
 ---
 
@@ -110,7 +112,7 @@ Amíg a 3. lépés tart, a régi képkockák az új méretre nyújtva látszanak
 A [javasolt minták](../patterns.md) közül:
 
 - **Component Configurator**: a tároló `Changed` eseményére a motor újraindítás nélkül újratölt, és a `ConfigurationChanged` eseménnyel jelzi a Karakternek, hogy kérdezze le újra az animációkat.
-- **Monitor Object** és **Scoped Locking**: a publikus műveletek egy közös zár (`lock (_syncRoot)`) alatt olvassák és cserélik a pillanatképet; a lassú munka (betöltés, újraépítés) a záron kívül, egy `SemaphoreSlim` mögött sorban fut, amelyet `try`/`finally` old fel.
-- **Thread-Safe Interface**: a motor bármelyik szálról hívható; a pillanatkép a csere után nem változik, és a képkockák fagyasztottak, így a Karakter zár nélkül olvashatja a kapott animációkat.
+- **Monitor Object** és **Scoped Locking**: a publikus műveletek egy közös zár (`lock (_syncRoot)`) alatt olvassák és cserélik a pillanatképet; a lassú munka (betöltés, újraskálázás) a záron kívül, egy `SemaphoreSlim` mögött sorban fut, amelyet `try`/`finally` old fel.
+- **Thread-Safe Interface**: a motor bármelyik szálról hívható; a pillanatkép a csere után nem változik, a képkockák fagyasztottak, és az animációk saját zárral védik a méretüket és a képkockáikat, így a Karakter külön zár nélkül olvashatja a kapott animációkat.
 - **Wrapper Facade**: a Karakter csak metrikákat és mozgásállapotot ad át, és kész `IAnimation` objektumokat kap; a tároló, a képbetöltés és a kiértékelés rejtve marad.
 - **Extension Interface**: a motor belül [`IMutableAnimation`](../../src/MonkeyStack.Core/Animation/IMutableAnimation.cs)-ként kezeli az animációkat (méret, képkockák, léptetés), kifelé csak az olvasható [`IAnimation`](../../src/MonkeyStack.Core/Animation/IAnimation.cs)-t adja.

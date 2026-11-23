@@ -118,6 +118,22 @@ public sealed class ConfigurationServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task FailingGroupWinnerSource_LetsNextRuleOfGroupWin()
+    {
+        // A Nagy tűz képe hiányzik: a szabály kimarad, így a csoportjában a Kis tűz nyer (service.md).
+        _store.Data = TestData.ValidConfiguration();
+        _store.Data.AnimationSources.Add(new AnimationSource { Id = 4, Name = "Nagy tűz", SourceType = AnimationSourceType.Gif, Path = "big-fire.gif" });
+        _store.Data.BehaviorRules.Single(r => r.Name == "Nagy tűz").AnimationSourceId = 4;
+        _store.Data.BehaviorRules.Single(r => r.Name == "Kis tűz").ZIndex = 21;
+        _loader.Failing.Add("big-fire.gif");
+
+        await _service.InitializeAsync();
+
+        Assert.Equal([21], _service.GetOverlayAnimations(Registry(cpu: 85, hour: 12)).Select(a => a.ZIndex));
+        Assert.Equal(4, Assert.Single(_service.MediaLoadFailures).AnimationSourceId);
+    }
+
+    [Fact]
     public async Task DisabledPolling_DisablesItsRules()
     {
         _store.Data = TestData.ValidConfiguration();
@@ -159,7 +175,7 @@ public sealed class ConfigurationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetCharacterSize_ResizesAtOnceThenRebuilds()
+    public async Task SetCharacterSize_ResizesAtOnceThenRescalesInPlace()
     {
         _store.Data = TestData.ValidConfiguration();
         await _service.InitializeAsync();
@@ -177,22 +193,49 @@ public sealed class ConfigurationServiceTests : IDisposable
         _loader.Gate.SetResult();
         await rescale;
 
-        var rebuilt = _service.GetMovementAnimation(MovementState.Idle)!;
-        Assert.Equal((200, 150), (rebuilt.CurrentFrame!.PixelWidth, rebuilt.CurrentFrame.PixelHeight));
-        Assert.Equal(2, raised);
+        // Ugyanaz a példány kapja meg az új méretű képkockákat, további esemény nélkül.
+        Assert.Same(idle, _service.GetMovementAnimation(MovementState.Idle));
+        Assert.Equal((200, 150), (idle.CurrentFrame!.PixelWidth, idle.CurrentFrame.PixelHeight));
+        Assert.Equal(1, raised);
     }
 
     [Fact]
-    public async Task SetCharacterSize_SourceFailingAtNewSize_FallsBack()
+    public async Task SetCharacterSize_ContinuesPlaybackWhereItWas()
+    {
+        _store.Data = TestData.ValidConfiguration();
+        _loader.FrameCounts["walk.gif"] = 6;
+        await _service.InitializeAsync();
+        var walking = _service.GetMovementAnimation(MovementState.Walking)!; // 12 képkocka/s
+        _service.UpdateAnimations(TimeSpan.FromSeconds(0.25));
+        Assert.Equal(3, walking.CurrentFrameIndex);
+
+        await _service.SetCharacterSizeAsync(200, 200);
+
+        Assert.Equal(200, walking.CurrentFrame!.PixelWidth);
+        Assert.Equal(3, walking.CurrentFrameIndex);
+    }
+
+    [Fact]
+    public async Task SetCharacterSize_SourceFailingAtNewSize_KeepsOldFrames()
     {
         _store.Data = TestData.ValidConfiguration();
         await _service.InitializeAsync();
+        var idle = _service.GetMovementAnimation(MovementState.Idle)!;
+        var fire = _service.GetOverlayAnimations(Registry(cpu: 85))[0];
         _loader.Failing.Add("walk.gif");
 
         await _service.SetCharacterSizeAsync(200, 200);
 
-        Assert.Equal(_loader.FrameCountOf("movement/idle"), _service.GetMovementAnimation(MovementState.Idle)!.FrameCount);
+        Assert.Same(idle, _service.GetMovementAnimation(MovementState.Idle));
+        Assert.Equal((200, 100), (idle.GetWidth(), idle.CurrentFrame!.PixelWidth)); // a régi képkockák, nyújtva
+        Assert.Equal(200, fire.CurrentFrame!.PixelWidth);
         Assert.Equal(1, Assert.Single(_service.MediaLoadFailures).AnimationSourceId);
+
+        _loader.Failing.Clear();
+        await _service.SetCharacterSizeAsync(300, 300);
+
+        Assert.Equal(300, idle.CurrentFrame!.PixelWidth);
+        Assert.Empty(_service.MediaLoadFailures);
     }
 
     [Fact]
@@ -276,7 +319,17 @@ public sealed class ConfigurationServiceTests : IDisposable
         await rescale.WaitAsync(TimeSpan.FromSeconds(10));
 
         Assert.Same(idle, _service.GetMovementAnimation(MovementState.Idle));
+        Assert.Equal(100, idle!.CurrentFrame!.PixelWidth);
         Assert.Equal(0, raised);
+    }
+
+    [Fact]
+    public async Task ReloadAfterDispose_Throws()
+    {
+        _store.Data = TestData.ValidConfiguration();
+        _service.Dispose();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => _service.ReloadAsync());
     }
 
     [Fact]
@@ -292,7 +345,7 @@ public sealed class ConfigurationServiceTests : IDisposable
 
         var idle = _service.GetMovementAnimation(MovementState.Idle)!;
         Assert.Equal(200, idle.CurrentFrame!.PixelWidth);
-        Assert.Equal(3, laterHandlerCalls); // betöltés, méretváltás azonnal, újraépítés után
+        Assert.Equal(2, laterHandlerCalls); // betöltés, méretváltás
     }
 
     [Fact]
@@ -387,9 +440,9 @@ public sealed class ConfigurationServiceTests : IDisposable
         await _service.SetCharacterSizeAsync(10_000, 0);
 
         Assert.Equal((ConfigurationLimits.CharacterSizePx.Max, 100), (_service.CharacterWidth, _service.CharacterHeight));
-        Assert.Equal(2, raised); // azonnal, majd az újraépítés után
+        Assert.Equal(1, raised);
         await _service.SetCharacterSizeAsync(ConfigurationLimits.CharacterSizePx.Max, 100);
-        Assert.Equal(2, raised);
+        Assert.Equal(1, raised);
     }
 
     [Fact]

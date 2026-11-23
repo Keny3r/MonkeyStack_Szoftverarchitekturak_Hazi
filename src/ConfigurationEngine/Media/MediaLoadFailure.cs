@@ -3,6 +3,7 @@ namespace ConfigurationEngine.Media;
 /// <summary>
 /// Egy animációs forrás, amely a futó konfiguráció felépítésekor nem töltődött be (pl. a fájlt mentés óta törölték).
 /// A rá hivatkozó mozgásállapot ilyenkor a szállított alapanimációt kapja, a rá hivatkozó szabályok nem jelennek meg.
+/// Ha a forrás csak a legutóbbi méretváltáskor nem töltődött be az új méretre, az animációja a régi képkockákat mutatja.
 /// </summary>
 /// <param name="AnimationSourceId">A forrás azonosítója.</param>
 /// <param name="SourceName">A forrás megjelenített neve.</param>

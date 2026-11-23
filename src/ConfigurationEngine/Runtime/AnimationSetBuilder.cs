@@ -41,6 +41,7 @@ internal sealed class AnimationSetBuilder
         }
 
         var movement = new Dictionary<MovementState, IMutableAnimation>();
+        var shown = new Dictionary<IMutableAnimation, AnimationSource>(ReferenceEqualityComparer.Instance);
         foreach (var state in Enum.GetValues<MovementState>())
         {
             var row = data.MovementAnimations.FirstOrDefault(m => m.MovementState == state);
@@ -56,13 +57,19 @@ internal sealed class AnimationSetBuilder
                 // Ha a beállított forrás maga a szállított mappa, nem próbáljuk újra.
                 if (loaded is null && !IsSameMedia(source, fallback))
                 {
+                    source = fallback;
                     loaded = await frames.LoadAsync(fallback, cancellationToken).ConfigureAwait(false);
                 }
 
                 framesPerSecond = ConfigurationDefaults.CreateMovementAnimation(state, fallback.Id).FramesPerSecond;
             }
 
-            movement[state] = new Animation(loaded ?? [], width, height, framesPerSecond);
+            var animation = new Animation(loaded ?? [], width, height, framesPerSecond);
+            movement[state] = animation;
+            if (loaded is not null)
+            {
+                shown[animation] = source;
+            }
         }
 
         var rules = new List<RuleAnimation>();
@@ -71,13 +78,47 @@ internal sealed class AnimationSetBuilder
             if (sources.GetValueOrDefault(rule.AnimationSourceId) is { } source &&
                 await frames.LoadAsync(source, cancellationToken).ConfigureAwait(false) is { } loaded)
             {
-                rules.Add(new RuleAnimation(rule, new Animation(loaded, width, height, rule.FramesPerSecond, rule.ZIndex)));
+                var animation = new Animation(loaded, width, height, rule.FramesPerSecond, rule.ZIndex);
+                rules.Add(new RuleAnimation(rule, animation));
+                shown[animation] = source;
             }
         }
 
         var disabledMetrics = data.MetricPollings.Where(p => !p.IsEnabled).Select(p => p.Metric).ToHashSet();
-        return new AnimationSet(data, movement, rules, disabledMetrics, frames.Failures);
+        return new AnimationSet(data, movement, rules, disabledMetrics, frames.Failures, shown);
     }
+
+    /// <summary>
+    /// Betölti a <paramref name="set"/> animációinak képkockáit <paramref name="width"/> × <paramref name="height"/>
+    /// méretben, ugyanabból a forrásból, amelyet most mutatnak, és ugyanazzal a memóriakerettel, mint a felépítés.
+    /// Az animációkat nem módosítja: a hívó a zár alatt adja át nekik a képkockákat
+    /// (<see cref="IMutableAnimation.SetFrames"/>). A most nem betölthető forrás animációja kimarad a
+    /// <see cref="Rescaled.Frames"/>-ből, a forrás pedig a <see cref="Rescaled.Failures"/>-be kerül.
+    /// </summary>
+    public async Task<Rescaled> RescaleAsync(AnimationSet set, int width, int height, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(set);
+
+        var frames = new FrameCache(_frameLoader, width, height);
+        var rescaled = new List<(IMutableAnimation, IReadOnlyList<BitmapSource>)>();
+
+        // Az Animations sorrendjében (előbb a mozgásállapotok), így a memóriakeretbe ugyanazok férnek bele elsőként.
+        foreach (var animation in set.Animations)
+        {
+            if (set.Sources.TryGetValue(animation, out var source) &&
+                await frames.LoadAsync(source, cancellationToken).ConfigureAwait(false) is { } loaded)
+            {
+                rescaled.Add((animation, loaded));
+            }
+        }
+
+        return new Rescaled(rescaled, frames.Failures);
+    }
+
+    /// <summary>Az új méretű képkockák animációnként, és a most nem betölthető források.</summary>
+    internal sealed record Rescaled(
+        IReadOnlyList<(IMutableAnimation Animation, IReadOnlyList<BitmapSource> Frames)> Frames,
+        IReadOnlyList<MediaLoadFailure> Failures);
 
     private static bool IsSameMedia(AnimationSource a, AnimationSource b) =>
         a.SourceType == b.SourceType &&

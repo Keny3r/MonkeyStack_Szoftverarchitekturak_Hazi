@@ -28,11 +28,18 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
     private readonly IConfigurationStore _store;
     private readonly AnimationSetBuilder _builder;
 
-    /// <summary>Sorosítja az újratöltést és az újraskálázást; a lassú képbetöltés e mögött, a <see cref="_syncRoot"/>-on kívül fut.</summary>
+    /// <summary>
+    /// Sorosítja az újratöltést és az újraskálázást; a lassú képbetöltés e mögött, a <see cref="_syncRoot"/>-on kívül
+    /// fut. A <see cref="Dispose"/> szándékosan nem dobja el: a még futó háttérmunka a végén elengedi, és várakozó
+    /// leíró nélkül a <see cref="SemaphoreSlim"/> nem foglal eldobandó erőforrást.
+    /// </summary>
     private readonly SemaphoreSlim _rebuildGate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
 
     private AnimationSet _current = AnimationSet.Empty;
+
+    /// <summary>A legutóbbi méretváltáskor az új méretre be nem tölthető források (az animációjuk a régi képkockákat mutatja).</summary>
+    private IReadOnlyList<MediaLoadFailure> _rescaleFailures = [];
     private int _characterWidth = ConfigurationDefaults.CreateCharacterSettings().CharacterWidth;
     private int _characterHeight = ConfigurationDefaults.CreateCharacterSettings().CharacterHeight;
 
@@ -87,12 +94,19 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
     }
 
     /// <summary>
-    /// A legutóbbi felépítéskor be nem töltött animációs források. A rájuk hivatkozó mozgásállapot a szállított
-    /// alapanimációt kapta, a rájuk hivatkozó szabályok nem jelennek meg.
+    /// A be nem töltött animációs források. A legutóbbi felépítéskor be nem töltött forrásra hivatkozó mozgásállapot
+    /// a szállított alapanimációt kapta, a rá hivatkozó szabályok nem jelennek meg. A legutóbbi méretváltáskor az új
+    /// méretre be nem tölthető forrás animációja a régi képkockákat mutatja, az új méretre nyújtva.
     /// </summary>
     public IReadOnlyList<MediaLoadFailure> MediaLoadFailures
     {
-        get { lock (_syncRoot) { return _current.Failures; } }
+        get
+        {
+            lock (_syncRoot)
+            {
+                return _rescaleFailures.Count == 0 ? _current.Failures : [.. _current.Failures, .. _rescaleFailures];
+            }
+        }
     }
 
     /// <summary>
@@ -112,17 +126,18 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
         Task.Run(() => ReloadCoreAsync(fromStoreChange: false, cancellationToken), CancellationToken.None);
 
     /// <summary>
-    /// Beállítja a karakter és az összes animáció egységes méretét, és kiváltja a <see cref="ConfigurationChanged"/>
-    /// eseményt. Az animációk azonnal az új méretben jelennek meg (a régi képkockák nyújtva). A háttérben a motor az
-    /// új méretre újraépíti az animációkat, majd a csere után a <see cref="ConfigurationChanged"/> még egyszer tüzel.
-    /// A méret a <see cref="ConfigurationLimits.CharacterSizePx"/> tartományra korlátozódik; a nem pozitív érték nem
-    /// változtat.
+    /// Beállítja a karakter és az összes animáció egységes méretét, és egyszer kiváltja a
+    /// <see cref="ConfigurationChanged"/> eseményt. Az animációk azonnal az új méretben jelennek meg (a régi képkockák
+    /// nyújtva). A háttérben a motor az új méretre tölti be a képkockákat, és ugyanazokba a példányokba cseréli
+    /// (<see cref="IMutableAnimation.SetFrames"/>), így a lekérdezett animációk érvényesek maradnak, és a lejátszás
+    /// folytatódik. A méret a <see cref="ConfigurationLimits.CharacterSizePx"/> tartományra korlátozódik; a nem pozitív
+    /// érték nem változtat.
     /// </summary>
     public void SetCharacterSize(int width, int height) => _ = SetCharacterSizeAsync(width, height);
 
     /// <summary>
-    /// Mint a <see cref="SetCharacterSize"/>; a visszaadott feladat az újraépítés végén (vagy elavulásakor) fejeződik
-    /// be. Nem dob kivételt: ha az újraépítés meghiúsul, az animációk a régi képkockákat mutatják az új méretben.
+    /// Mint a <see cref="SetCharacterSize"/>; a visszaadott feladat az újraskálázás végén (vagy elavulásakor) fejeződik
+    /// be. Nem dob kivételt: ha az újraskálázás meghiúsul, az animációk a régi képkockákat mutatják az új méretben.
     /// </summary>
     public Task SetCharacterSizeAsync(int width, int height)
     {
@@ -153,7 +168,7 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
         previous?.Cancel();
         previous?.Dispose();
 
-        // Előbb indul az újraépítés, így egy hibás feliratkozó sem akadályozhatja meg.
+        // Előbb indul az újraskálázás, így egy hibás feliratkozó sem akadályozhatja meg.
         var rescale = Task.Run(() => RescaleAsync(version, token), CancellationToken.None);
         OnConfigurationChanged();
         return rescale;
@@ -206,6 +221,7 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
     /// <summary>Leiratkozik a tárolóról, és megszakítja a folyamatban lévő betöltést és újraskálázást.</summary>
     public void Dispose()
     {
+        CancellationTokenSource? rescale;
         lock (_syncRoot)
         {
             if (_disposed)
@@ -214,15 +230,29 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
             }
 
             _disposed = true;
+            rescale = _rescaleCancellation;
+            _rescaleCancellation = null;
         }
 
         _store.Changed -= OnStoreChanged;
+
+        // Előbb megszakítás, utána eldobás: a még futó háttérmunka így megszakított tokent lát, nem eldobott forrást.
         _lifetime.Cancel();
+        rescale?.Dispose();
+        _lifetime.Dispose();
     }
 
     private async Task ReloadCoreAsync(bool fromStoreChange, CancellationToken cancellationToken)
     {
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+        CancellationToken lifetime;
+        lock (_syncRoot)
+        {
+            // A Dispose a _disposed beállítása után, a záron kívül dobja el a _lifetime-ot, így itt még érvényes.
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            lifetime = _lifetime.Token;
+        }
+
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetime);
         var token = linked.Token;
 
         await _rebuildGate.WaitAsync(token).ConfigureAwait(false);
@@ -256,6 +286,7 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
 
                 token.ThrowIfCancellationRequested();
                 _current = built;
+                _rescaleFailures = [];
                 if (version == _sizeVersion)
                 {
                     // A mentett méret csak a sikeres csere után érvényes, így a jelentett méret mindig az animációké.
@@ -264,8 +295,8 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
                 }
                 else
                 {
-                    // Felépítés közben állított méret: az új animációk azonnal ezt mutatják, a képkockákat a
-                    // közben elindult újraskálázás építi újra.
+                    // Felépítés közben állított méret: az új animációk azonnal ezt mutatják, a képkockáikat a
+                    // közben elindult újraskálázás tölti be az új méretre.
                     ResizeAll(built);
                 }
             }
@@ -280,7 +311,6 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
 
     private async Task RescaleAsync(int version, CancellationToken token)
     {
-        bool swapped = false;
         try
         {
             await _rebuildGate.WaitAsync(token).ConfigureAwait(false);
@@ -292,7 +322,7 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
 
         try
         {
-            ConfigurationData? data;
+            AnimationSet set;
             int width;
             int height;
             lock (_syncRoot)
@@ -302,22 +332,23 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
                     return; // közben újabb méret vagy újratöltés jött, az elvégzi
                 }
 
-                (data, width, height) = (_current.Data, _characterWidth, _characterHeight);
+                (set, width, height) = (_current, _characterWidth, _characterHeight);
             }
 
-            if (data is null)
-            {
-                return; // még nincs betöltve; az első betöltés a mentett méretet használja
-            }
-
-            var built = await _builder.BuildAsync(data, width, height, token).ConfigureAwait(false);
+            var rescaled = await _builder.RescaleAsync(set, width, height, token).ConfigureAwait(false);
 
             lock (_syncRoot)
             {
+                // A kapu miatt közben nem volt újratöltés, így a set még a futó pillanatkép. Nincs csere és nincs
+                // újabb esemény: a lekérdezett példányok kapják meg az új képkockákat.
                 if (version == _sizeVersion && !_disposed && !token.IsCancellationRequested)
                 {
-                    _current = built;
-                    swapped = true;
+                    foreach (var (animation, frames) in rescaled.Frames)
+                    {
+                        animation.SetFrames(frames, width, height);
+                    }
+
+                    _rescaleFailures = rescaled.Failures;
                 }
             }
         }
@@ -331,11 +362,6 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
         finally
         {
             _rebuildGate.Release();
-        }
-
-        if (swapped)
-        {
-            OnConfigurationChanged();
         }
     }
 
@@ -353,8 +379,9 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
         {
             await Task.Run(() => ReloadCoreAsync(fromStoreChange: true, CancellationToken.None)).ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
         {
+            // A szolgáltatást közben eldobták.
         }
         catch (Exception ex)
         {
