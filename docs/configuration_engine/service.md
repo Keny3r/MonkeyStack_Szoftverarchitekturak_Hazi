@@ -15,7 +15,7 @@ Ez a dokumentum a [Konfigurációs motor](../components.md#konfigurációs-motor
 | [`Media/MediaLoadFailure.cs`](../../src/ConfigurationEngine/Media/MediaLoadFailure.cs) | Egy forrás, amely a felépítéskor vagy a legutóbbi méretváltáskor nem töltődött be |
 | [`tests/ConfigurationEngine.Tests`](../../tests/ConfigurationEngine.Tests) | `RuleEvaluatorTests`, `ConfigurationServiceTests` |
 
-A paraméter nélküli konstruktor a felhasználó adatbázisát ([`SqliteConfigurationStore`](../../src/ConfigurationEngine/Storage/SqliteConfigurationStore.cs), gyors médiaellenőrzéssel) és a szállított képeket ([`FrameLoader`](../../src/ConfigurationEngine/Media/FrameLoader.cs)) használja. A konstruktor nem végez I/O-t, a konfiguráció az `InitializeAsync` hívásakor töltődik be. A tesztek a második konstruktorral saját tárolót és betöltőt adnak át.
+A `ConfigurationService(IFrameLoop)` konstruktor a felhasználó adatbázisát ([`SqliteConfigurationStore`](../../src/ConfigurationEngine/Storage/SqliteConfigurationStore.cs), gyors médiaellenőrzéssel) és a szállított képeket ([`FrameLoader`](../../src/ConfigurationEngine/Media/FrameLoader.cs)) használja; a léptetőt a host adja át ([Közös léptető](./editor.md#közös-léptető-iframeloop)). A konstruktor nem végez I/O-t, a konfiguráció az `InitializeAsync` hívásakor töltődik be. A tesztek a második konstruktorral saját tárolót, betöltőt, médiaellenőrzőt és léptetőt adnak át.
 
 ---
 

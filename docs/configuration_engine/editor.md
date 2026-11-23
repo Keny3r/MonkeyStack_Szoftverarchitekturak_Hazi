@@ -16,7 +16,7 @@ Ez a dokumentum a [futó konfiguráció](./service.md) kiegészítése. Azt írj
 
 **Konstruktorok.** A szolgáltatásnak nincs saját időzítője, ezért mindkét konstruktor kötelezően megkapja a léptetőt:
 
-- `ConfigurationService(IFrameLoop frameLoop)`: a felhasználó adatbázisával és a szállított képekkel (ez váltja a [service.md](./service.md#felépítés)-ben leírt paraméter nélküli konstruktort);
+- `ConfigurationService(IFrameLoop frameLoop)`: a felhasználó adatbázisával és a szállított képekkel ([service.md, "Felépítés"](./service.md#felépítés));
 - `ConfigurationService(IConfigurationStore, IFrameLoader, IMediaValidator, IFrameLoop)`: a tesztek ezzel adnak át hamis függőségeket.
 
 A léptetőt a host hozza létre, indítja és dobja el; a szolgáltatás csak feliratkozik rá, és a `Dispose`-ban leiratkozik.
