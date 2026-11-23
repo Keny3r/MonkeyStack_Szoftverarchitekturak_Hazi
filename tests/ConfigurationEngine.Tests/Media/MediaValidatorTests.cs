@@ -287,6 +287,14 @@ public sealed class MediaValidatorTests : IDisposable
         await Assert.ThrowsAsync<MediaLoadException>(() => _validator.ReadImageSizeAsync(Gif("nincs.gif")));
     }
 
+    [Fact]
+    public async Task ReadImageSize_PngWithGifExtension_Throws()
+    {
+        WritePng(Path.Combine(_directory, "valojaban-png.gif"), 1, 1, Red);
+
+        await Assert.ThrowsAsync<MediaLoadException>(() => _validator.ReadImageSizeAsync(Gif("valojaban-png.gif")));
+    }
+
     private static AnimationSource Gif(string path) =>
         new() { Id = 7, Name = "Gif", SourceType = AnimationSourceType.Gif, Path = path };
 

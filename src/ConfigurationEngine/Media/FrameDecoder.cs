@@ -143,7 +143,11 @@ internal static class FrameDecoder
         {
             if (source.SourceType == AnimationSourceType.Gif)
             {
-                OpenDecoder(files[0], out var gif);
+                if (OpenDecoder(files[0], out var gif) is not GifBitmapDecoder)
+                {
+                    throw PathError($"A(z) {Path.GetFileName(files[0])} nem GIF fájl.");
+                }
+
                 return new PixelSize(gif.Width, gif.Height);
             }
 
