@@ -13,7 +13,7 @@ using MonkeyStack.Core.Animation;
 /// A <c>ConfigurationService</c> valósítja meg az <see cref="MonkeyStack.Core.Configuration.IConfigurationService"/>
 /// és az <see cref="MonkeyStack.Core.Events.IPollingSettingsProvider"/> mellett (Extension Interface minta).
 /// A műveletek szálbiztosak és a UI szálról hívhatók; az aszinkron műveletek a lassú munkát a háttérben végzik.
-/// Leírás: docs/configuration_engine/gui.md, "Kapcsolat a modellel".
+/// Leírás: docs/configuration_engine/view.md, "Kapcsolat a modellel".
 /// </summary>
 public interface IConfigurationEditor
 {

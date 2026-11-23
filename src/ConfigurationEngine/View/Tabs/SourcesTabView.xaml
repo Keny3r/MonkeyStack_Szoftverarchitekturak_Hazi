@@ -1,0 +1,214 @@
+<UserControl x:Class="ConfigurationEngine.View.Tabs.SourcesTabView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:tabs="clr-namespace:ConfigurationEngine.View.Tabs"
+             xmlns:controls="clr-namespace:ConfigurationEngine.View.Controls"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=tabs:SourcesTabViewModel}">
+    <UserControl.Resources>
+        <ResourceDictionary Source="/ConfigurationEngine;component/View/Styles.xaml" />
+    </UserControl.Resources>
+
+    <!-- A „Források” fül: lista + részletek (view.md, "4. Animációs források") -->
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" MinHeight="120" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- [+ Fájl tallózása…]  [+ Mappa tallózása…]  [Törlés] -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+            <Button Content="+ Fájl tallózása…" Command="{Binding BrowseFileCommand}" Padding="10,2" />
+            <Button Content="+ Mappa tallózása…" Command="{Binding BrowseFolderCommand}" Padding="10,2" Margin="8,0,0,0" />
+            <!-- Használt forrásnál inaktív; a súgó megmondja, mi használja -->
+            <Button Content="Törlés" Command="{Binding DeleteCommand}" Padding="10,2" Margin="8,0,0,0"
+                    ToolTip="{Binding DeleteToolTip}" ToolTipService.ShowOnDisabled="True" />
+        </StackPanel>
+
+        <!-- Név | Típus | Útvonal | Használja | Előnézet -->
+        <ListView Grid.Row="1" ItemsSource="{Binding Sources}" SelectedItem="{Binding SelectedSource}">
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="VerticalContentAlignment" Value="Center" />
+                </Style>
+            </ListView.ItemContainerStyle>
+            <ListView.View>
+                <GridView AllowsColumnReorder="False">
+                    <!-- A hibás forrás sora hibajelet kap -->
+                    <GridViewColumn Width="24">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate DataType="{x:Type tabs:SourceRowViewModel}">
+                                <TextBlock Text="⚠" Foreground="{StaticResource ErrorBrush}" ToolTip="A forrás hibás."
+                                           Visibility="{Binding HasAnyError, Converter={StaticResource BoolToVisibility}}" />
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn Header="Név" Width="170">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate DataType="{x:Type tabs:SourceRowViewModel}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+                                    <!-- A tallózás / csere utáni médiaellenőrzés idején -->
+                                    <TextBlock Text=" ellenőrzés…" Foreground="Gray" FontStyle="Italic"
+                                               Visibility="{Binding IsChecking, Converter={StaticResource BoolToVisibility}}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn Header="Típus" Width="100" DisplayMemberBinding="{Binding TypeText}" />
+                    <GridViewColumn Header="Útvonal" Width="180">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate DataType="{x:Type tabs:SourceRowViewModel}">
+                                <TextBlock Text="{Binding PathText}" ToolTip="{Binding FullPath}" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn Header="Használja" Width="150">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate DataType="{x:Type tabs:SourceRowViewModel}">
+                                <TextBlock Text="{Binding UsedByText}" ToolTip="{Binding UsedByText}" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn Header="Előnézet" Width="170">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate DataType="{x:Type tabs:SourceRowViewModel}">
+                                <controls:AnimationPreview Preview="{Binding Preview}" IsCompact="True" CompactSize="40" />
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                </GridView>
+            </ListView.View>
+        </ListView>
+
+        <!-- A kijelölt forrás részletei -->
+        <StackPanel Grid.Row="2" Margin="0,12,0,0" DataContext="{Binding SelectedSource}"
+                    Visibility="{Binding DataContext.HasSelection, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVisibility}}">
+
+            <!-- „── fire_big ──” -->
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Separator Grid.Column="0" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding DisplayName}" FontWeight="SemiBold" Margin="6,0" />
+                <Separator Grid.Column="2" VerticalAlignment="Center" />
+            </Grid>
+
+            <!-- A forrás egészére vonatkozó hibák (pl. a rács nem egyezik a képpel) a részletek panel tetején -->
+            <ItemsControl ItemsSource="{Binding ItemErrors}" Margin="0,0,0,4">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Style="{StaticResource FieldErrorText}" Text="{Binding}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.Resources>
+                    <Style x:Key="Label" TargetType="TextBlock">
+                        <Setter Property="Margin" Value="0,3,12,0" />
+                        <Setter Property="VerticalAlignment" Value="Top" />
+                    </Style>
+                    <Style x:Key="Cell" TargetType="StackPanel">
+                        <Setter Property="Margin" Value="0,0,8,6" />
+                    </Style>
+                </Grid.Resources>
+
+                <!-- Név:  [fire_big]     Típus: GIF -->
+                <TextBlock Grid.Row="0" Text="Név:" Style="{StaticResource Label}" />
+                <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal">
+                    <StackPanel Style="{StaticResource Cell}">
+                        <TextBox Width="200" Text="{Binding Name.Text, UpdateSourceTrigger=PropertyChanged}"
+                                 controls:FocusTarget.Property="Name" />
+                        <TextBlock Style="{StaticResource FieldErrorText}" MaxWidth="200" Text="{Binding Name.ErrorText}" />
+                    </StackPanel>
+                    <TextBlock Text="Típus:" Margin="16,3,8,0" VerticalAlignment="Top" />
+                    <TextBlock Text="{Binding TypeText}" Margin="0,3,0,0" VerticalAlignment="Top" />
+                </StackPanel>
+
+                <!-- Útvonal: C:\…\fire_big.gif   [Csere…] -->
+                <TextBlock Grid.Row="1" Text="Útvonal:" Style="{StaticResource Label}" />
+                <StackPanel Grid.Row="1" Grid.Column="1" Style="{StaticResource Cell}">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="Csere…" Padding="10,1" Margin="8,0,0,0" VerticalAlignment="Top"
+                                Command="{Binding DataContext.ReplaceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                controls:FocusTarget.Property="Path" />
+                        <TextBlock Text="{Binding DetailsPathText}" ToolTip="{Binding FullPath}" TextTrimming="CharacterEllipsis"
+                                   Margin="0,3,0,0" VerticalAlignment="Top" />
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource FieldErrorText}" Text="{Binding FieldErrors[Path]}" />
+                </StackPanel>
+
+                <!-- Csak sprite sheetnél: a rács mezői -->
+                <TextBlock Grid.Row="2" Text="Képkocka mérete:" Style="{StaticResource Label}"
+                           Visibility="{Binding IsSpriteSheet, Converter={StaticResource BoolToVisibility}}" />
+                <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal"
+                            Visibility="{Binding IsSpriteSheet, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel Style="{StaticResource Cell}">
+                        <TextBox Width="56" Text="{Binding FrameWidth.Text, UpdateSourceTrigger=PropertyChanged}"
+                                 controls:FocusTarget.Property="FrameWidth" />
+                        <TextBlock Style="{StaticResource FieldErrorText}" MaxWidth="160" Text="{Binding FrameWidth.ErrorText}" />
+                    </StackPanel>
+                    <TextBlock Text="×" Margin="0,3,8,0" VerticalAlignment="Top" />
+                    <StackPanel Style="{StaticResource Cell}">
+                        <TextBox Width="56" Text="{Binding FrameHeight.Text, UpdateSourceTrigger=PropertyChanged}"
+                                 controls:FocusTarget.Property="FrameHeight" />
+                        <TextBlock Style="{StaticResource FieldErrorText}" MaxWidth="160" Text="{Binding FrameHeight.ErrorText}" />
+                    </StackPanel>
+                    <TextBlock Text="px" Margin="0,3,0,0" VerticalAlignment="Top" />
+                </StackPanel>
+
+                <TextBlock Grid.Row="3" Text="Rács:" Style="{StaticResource Label}"
+                           Visibility="{Binding IsSpriteSheet, Converter={StaticResource BoolToVisibility}}" />
+                <StackPanel Grid.Row="3" Grid.Column="1"
+                            Visibility="{Binding IsSpriteSheet, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel Orientation="Horizontal">
+                        <StackPanel Style="{StaticResource Cell}">
+                            <TextBox Width="56" Text="{Binding Columns.Text, UpdateSourceTrigger=PropertyChanged}"
+                                     controls:FocusTarget.Property="Columns" />
+                            <TextBlock Style="{StaticResource FieldErrorText}" MaxWidth="160" Text="{Binding Columns.ErrorText}" />
+                        </StackPanel>
+                        <TextBlock Text="oszlop ×" Margin="0,3,8,0" VerticalAlignment="Top" />
+                        <StackPanel Style="{StaticResource Cell}">
+                            <TextBox Width="56" Text="{Binding Rows.Text, UpdateSourceTrigger=PropertyChanged}"
+                                     controls:FocusTarget.Property="Rows" />
+                            <TextBlock Style="{StaticResource FieldErrorText}" MaxWidth="160" Text="{Binding Rows.ErrorText}" />
+                        </StackPanel>
+                        <TextBlock Text="sor" Margin="0,3,24,0" VerticalAlignment="Top" />
+                        <TextBlock Text="Képkockák száma:" Margin="0,3,8,0" VerticalAlignment="Top" />
+                        <StackPanel Style="{StaticResource Cell}">
+                            <TextBox Width="56" Text="{Binding FrameCount.Text, UpdateSourceTrigger=PropertyChanged}"
+                                     controls:FocusTarget.Property="FrameCount" />
+                            <TextBlock Style="{StaticResource FieldErrorText}" MaxWidth="160" Text="{Binding FrameCount.ErrorText}" />
+                        </StackPanel>
+                    </StackPanel>
+                    <!-- A rácsból számolt képméret, hogy eltérés esetén látszódjon, melyik értéket kell javítani -->
+                    <TextBlock Text="{Binding GridSizeText}" Foreground="Gray" Margin="0,0,0,6" />
+                </StackPanel>
+
+                <!-- Élő előnézet: a részletek panelen teljes karakterméretben -->
+                <controls:AnimationPreview Grid.Row="0" Grid.RowSpan="5" Grid.Column="2" VerticalAlignment="Top"
+                                           Margin="12,0,0,0" Preview="{Binding Preview}" />
+            </Grid>
+        </StackPanel>
+    </Grid>
+</UserControl>
