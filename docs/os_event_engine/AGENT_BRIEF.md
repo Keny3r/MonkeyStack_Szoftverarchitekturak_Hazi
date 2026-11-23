@@ -12,7 +12,8 @@ Windows rendszermetrikákat mér (CPU, memória, háttértár, akku, ablakszám,
 - ✅ Döntések a #3 review-ján: host bekötés, `Simulation`-alapú Mock út, Observer/Reactor szóhasználat, platform-szolgáltató nálunk (A opció).
 - ✅ M1–M4: valódi Win32 mérés, monitorok, lánc, kiküldés; `Start`, `Reconfigure`, `UsePollingSettings`, `GetSnapshot`, `GetMonitorStatus`, `Dispose` működik. Saját terhelés ~0,15% (16 mag, 10 s mérés).
 - ✅ M5–M7: szimuláció (`Simulation`, `IsMockModeEnabled`), csúszkás OS Mock View (MVVM, presetek), 35 unit teszt (`tests/OsEventEngine.Tests`).
-- ⏳ Hátravan: M8 host bekötés (Karakter motor: `Start()`/`Dispose()`, `UsePollingSettings`) → M11 `Win32PlatformProvider` (a szerződés már a Core-ban) → M10 minta-dokumentáció; opcionális M9 Reactor ([plan.md 9.](./plan.md#9-megvalósítási-lépések-mérföldkövek)).
+- ✅ M9 Reactor (`Win32EventReactor`: ablak, tápellátás, idő, kijelző értesítések → `TriggerNow`), M11 platform-szolgáltató (`OsEventMonitorService.Platforms`), M10 minta-dokumentáció ([patterns_applied.md](./patterns_applied.md)). 70 unit teszt.
+- ⏳ Hátravan (nem a mi kódunk): M8 host bekötés a Karakter motorban: `Start()`/`Dispose()`, `UsePollingSettings`, és a fizika tickben `SharedOsMonitorService.Platforms.Current.Platforms` ([plan.md 9.](./plan.md#9-megvalósítási-lépések-mérföldkövek)).
 - Nincs több `NotImplementedException`. Tesztek: `dotnet test tests/OsEventEngine.Tests` (a CI minden PR-on futtatja).
 
 ## Fájltérkép
@@ -26,7 +27,9 @@ Windows rendszermetrikákat mér (CPU, memória, háttértár, akku, ablakszám,
 | `src/OsEventEngine/Monitoring/MetricCatalog.cs` | Tartományok, alap intervallumok, UI-leírók (egyeznek a `ConfigurationLimits`-szel; később a Core-ba). |
 | `src/OsEventEngine/Monitoring/MetricSample.cs`, `MonitorInterfaces.cs` | Belső minta + `IMetricMonitor`, `IConfigurableComponent`, `ISimulatable`, `MonitorStatus`. |
 | `src/OsEventEngine/Sources/*` | `IMetricSource` + 7 élő forrás (`CpuSource`, `SystemSources.cs`). A natív lekérdezés konstruktorban cserélhető (tesztek). |
-| `src/OsEventEngine/Native/*` | `NativeMethods` (DllImport), `Win32System`, `WindowEnumerator` (Wrapper Facade). Win32 hívás csak itt. |
+| `src/OsEventEngine/Native/*` | `NativeMethods` (DllImport), `Win32System`, `WindowEnumerator`, `Win32DesktopScanner` + `DesktopScene` (Wrapper Facade), `Win32EventReactor` (Reactor). Win32 hívás csak itt. |
+| `src/OsEventEngine/Notifications/*` | `OsNotification` + `IOsNotificationSource` (a Reactor szerződése), `Throttle` (értesítések összevonása). |
+| `src/OsEventEngine/Platforms/*` | `PlatformCalculator` (tiszta: takarás, fullscreen, talaj, DPI), `Win32PlatformProvider` (`IPlatformProvider`, újraszámolás a Reactor jelzésére). |
 | `src/OsEventEngine/Monitoring/MetricMonitor.cs`, `MonitorRepository.cs` | Mintavételező ciklus (`Init`/`Suspend`/`Resume`/`Fini`, `TriggerNow`, hiba → backoff). |
 | `src/OsEventEngine/State/MetricSnapshotStore.cs` | Pillanatkép + `EventDataMapper` (`MetricSample` → Core `*EventData` / `Notify…`). |
 | `src/OsEventEngine/Pipeline/*` | `IEventInterceptor`, `Interceptors.cs` (Smoothing → ChangeFilter → Snapshot → Logging), `EventDispatcher` (csatorna + 1 fogyasztó). |
@@ -45,6 +48,7 @@ Windows rendszermetrikákat mér (CPU, memória, háttértár, akku, ablakszám,
 4. Minden eseményhez új `*EventData` példány jön.
 5. Time = `Hour`/`Minute` (belül perc éjfél óta, 0–1439). Inaktivitás percben.
 6. Sorrend a hostban: létrehozás → feliratkozás → `Start()` → `Dispose()`.
+7. `Platforms.Current`: lock nélkül, minden fizika tickben olvasható, WPF egységben (DIP); a talaj (tálca teteje / képernyő alja) is `PlatformSegment`. A `PlatformsChanged` háttérszálon jön.
 
 ## Szabályok agenteknek
 - **Csak `src/OsEventEngine/` és `docs/os_event_engine/` módosítható szabadon.** Core, `CharacterEngine`, `ConfigurationEngine`, `docs/mvc_architecture.md`: előbb szólj a felhasználónak, hogy egyeztessen a komponens felelősével.
@@ -68,4 +72,5 @@ Wrapper Facade: `Sources/*`, `Native/*` · Component Configurator: `IConfigurabl
 | Tesztek | [8. fejezet](./plan.md#8-tesztelési-terv) |
 | Mit kell egyeztetni, kivel | [10. fejezet](./plan.md#10-egyeztetendő-a-többi-komponens-felelőseivel) |
 | Döntések (ADR) | [11. fejezet](./plan.md#11-architekturális-döntések-adr-összefoglaló) |
-| Ablakperemek / fullscreen / takarás (elfogadva, még nincs kódolva) | [platform_provider_proposal.md](./platform_provider_proposal.md) |
+| Ablakperemek / fullscreen / takarás (kész, M11) | [platform_provider_proposal.md](./platform_provider_proposal.md), [patterns_applied.md 3.](./patterns_applied.md#3-platform-szolgáltató-m11) |
+| Melyik minta hol van a kész kódban | [patterns_applied.md](./patterns_applied.md) |
