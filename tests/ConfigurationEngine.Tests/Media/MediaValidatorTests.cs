@@ -240,11 +240,11 @@ public sealed class MediaValidatorTests : IDisposable
     }
 
     [Fact]
-    public async Task ShippedMovementAnimations_PassFullValidation()
+    public async Task ShippedAnimations_PassFullValidation()
     {
         var validator = new MediaValidator();
 
-        foreach (var source in ConfigurationDefaults.CreateMovementSources())
+        foreach (var source in ConfigurationDefaults.CreateMovementSources().Concat(ConfigurationDefaults.CreateOverlaySources()))
         {
             Assert.Empty(await validator.ValidateAsync(source, MediaValidationDepth.Full));
         }

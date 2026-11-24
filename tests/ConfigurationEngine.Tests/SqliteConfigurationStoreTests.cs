@@ -56,8 +56,15 @@ public sealed class SqliteConfigurationStoreTests : IDisposable
             Assert.Equal($"movement/{m.MovementState.ToString().ToLowerInvariant()}", source.Path);
             Assert.Equal(10, m.FramesPerSecond);
         });
-        Assert.Equal(4, first.Data.AnimationSources.Count);
-        Assert.Empty(first.Data.BehaviorRules);
+
+        // A szállított overlay-ek: forrásonként egy képsorozat-mappa és az alapértelmezett szabályok.
+        var shippedSources = ConfigurationDefaults.CreateMovementSources().Concat(ConfigurationDefaults.CreateOverlaySources());
+        Assert.Equal(
+            shippedSources.Select(s => (s.Id, s.Name, s.SourceType, s.Path)).OrderBy(s => s.Id),
+            first.Data.AnimationSources.Select(s => (s.Id, s.Name, s.SourceType, s.Path)).OrderBy(s => s.Id));
+        Assert.Equal(
+            ConfigurationDefaults.CreateDefaultRules().Select(r => (r.Id, r.Name, r.AnimationSourceId, r.ExclusiveGroup)).OrderBy(r => r.Id),
+            first.Data.BehaviorRules.Select(r => (r.Id, r.Name, r.AnimationSourceId, r.ExclusiveGroup)).OrderBy(r => r.Id));
     }
 
     [Fact]
@@ -72,7 +79,7 @@ public sealed class SqliteConfigurationStoreTests : IDisposable
 
         Assert.Empty(result.DroppedItems);
         Assert.Equal(walkingSourceId, result.Data.MovementAnimations.Single(m => m.MovementState == MovementState.Walking).AnimationSourceId);
-        Assert.Equal(4, result.Data.AnimationSources.Count);
+        Assert.Equal(defaults.AnimationSources.Count, result.Data.AnimationSources.Count);
     }
 
     [Fact]

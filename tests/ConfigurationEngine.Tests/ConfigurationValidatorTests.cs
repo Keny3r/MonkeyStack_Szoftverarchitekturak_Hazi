@@ -17,6 +17,23 @@ public class ConfigurationValidatorTests
         Assert.True(result.IsValid, string.Join(Environment.NewLine, result.Errors));
     }
 
+    [Fact]
+    public void ShippedDefaults_HaveNoErrors()
+    {
+        var data = new ConfigurationData
+        {
+            AnimationSources = [.. ConfigurationDefaults.CreateMovementSources(), .. ConfigurationDefaults.CreateOverlaySources()],
+            MovementAnimations = ConfigurationDefaults.CreateMovementAnimations(),
+            BehaviorRules = ConfigurationDefaults.CreateDefaultRules(),
+            Character = ConfigurationDefaults.CreateCharacterSettings(),
+            MetricPollings = ConfigurationDefaults.CreateMetricPollings()
+        };
+
+        var result = _validator.Validate(data);
+
+        Assert.True(result.IsValid, string.Join(Environment.NewLine, result.Errors));
+    }
+
     [Theory]
     [InlineData(Metric.Cpu, 150)]
     [InlineData(Metric.Cpu, -1)]

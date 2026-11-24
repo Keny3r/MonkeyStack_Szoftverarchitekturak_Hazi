@@ -4,8 +4,9 @@ using MonkeyStack.Core.Character;
 using MonkeyStack.Core.Events;
 
 /// <summary>
-/// A konfiguráció alapértékei (schema.md, "CharacterSettings", "MetricPolling" és "Tárolás").
-/// Ezekkel jön létre az új adatbázis, és ezek érvényesek egy hiányzó vagy hibás sor helyett.
+/// A konfiguráció alapértékei (schema.md, "CharacterSettings", "MetricPolling" és "Tárolás"; a szállított overlay-ek
+/// és szabályok: default_overlays.md). Ezekkel jön létre az új adatbázis, és ezek érvényesek egy hiányzó vagy hibás
+/// sor helyett.
 /// </summary>
 public static class ConfigurationDefaults
 {
@@ -59,6 +60,77 @@ public static class ConfigurationDefaults
     /// <summary>Az összes mozgásállapot alapértelmezett mozgási animációja a szállított forrásokkal.</summary>
     public static List<MovementAnimation> CreateMovementAnimations() =>
         Enum.GetValues<MovementState>().Select(s => CreateMovementAnimation(s, MovementSourceId(s))).ToList();
+
+    /// <summary>A szállított overlay-ek forrásai (képsorozat-mappák az <c>assets/overlays</c> alatt), rögzített azonosítóval.</summary>
+    public static List<AnimationSource> CreateOverlaySources() =>
+    [
+        Overlay(KisTuz, "Kis tűz", "kis_tuz"),
+        Overlay(NagyTuz, "Nagy tűz", "nagy_tuz"),
+        Overlay(Halosapka, "Hálósapka", "halosapka"),
+        Overlay(Zzz, "Álmosság", "zzz"),
+        Overlay(Lemerulo, "Lemerülőben", "lemerulo"),
+        Overlay(Unatkozas, "Unatkozás", "unatkozas"),
+        Overlay(Ablakkaosz, "Ablakkáosz", "ablakkaosz"),
+        Overlay(Floppytorony, "Floppytorony", "floppytorony"),
+        Overlay(Bananhejak, "Banánhéjak", "bananhejak"),
+        Overlay(Cetlik, "Cetlik", "cetlik")
+    ];
+
+    /// <summary>
+    /// Az alapértelmezett viselkedési szabályok (default_overlays.md). A kizáró csoportok képernyőrégiók: egy régióban
+    /// egyszerre csak a legnagyobb prioritású teljesülő szabály overlay-e látszik, így több igaz szabály sem zsúfolja
+    /// össze a képet. A <see cref="Cetlik"/> forráshoz nem tartozik szabály, a memóriát a <see cref="Bananhejak"/> jelzi.
+    /// </summary>
+    public static List<BehaviorRule> CreateDefaultRules() =>
+    [
+        DefaultRule(1, "Kis tűz", Metric.Cpu, ComparisonOperator.Gt, 60, KisTuz, HeadTop, 40),
+        DefaultRule(2, "Nagy tűz", Metric.Cpu, ComparisonOperator.Gt, 80, NagyTuz, Sides, 20),
+        DefaultRule(3, "Hálósapka", Metric.Time, ComparisonOperator.Between, 22 * 60, Halosapka, HeadTop, 10, upper: 6 * 60),
+        DefaultRule(4, "Álmosság", Metric.Time, ComparisonOperator.Between, 22 * 60, Zzz, TopRight, 10, upper: 6 * 60),
+        DefaultRule(5, "Lemerülőben", Metric.Battery, ComparisonOperator.Lt, 10, Lemerulo, TopLeft, 10),
+        DefaultRule(6, "Unatkozás", Metric.Inactivity, ComparisonOperator.Gt, 5, Unatkozas, TopRight, 20),
+        DefaultRule(7, "Ablakkáosz", Metric.WindowCount, ComparisonOperator.Gt, 10, Ablakkaosz, HeadTop, 30),
+        DefaultRule(8, "Floppytorony", Metric.Disk, ComparisonOperator.Gt, 99, Floppytorony, HeadTop, 20),
+        DefaultRule(9, "Banánhéjak", Metric.Memory, ComparisonOperator.Gt, 90, Bananhejak, Sides, 10)
+    ];
+
+    // A szállított overlay-források azonosítói a mozgási források (1–4) után.
+    private const int KisTuz = 5, NagyTuz = 6, Halosapka = 7, Zzz = 8, Lemerulo = 9,
+        Unatkozas = 10, Ablakkaosz = 11, Floppytorony = 12, Bananhejak = 13, Cetlik = 14;
+
+    // Képernyőrégiók (kizáró csoportok) és a hozzájuk tartozó rétegsorrend.
+    private const string HeadTop = "fejtető", Sides = "oldalak", TopLeft = "bal felső", TopRight = "jobb felső";
+
+    private static int RegionZIndex(string region) => region switch
+    {
+        Sides => 10,
+        HeadTop => 20,
+        _ => 30
+    };
+
+    private static AnimationSource Overlay(int id, string name, string folder) => new()
+    {
+        Id = id,
+        Name = name,
+        SourceType = AnimationSourceType.ImageFolder,
+        Path = $"overlays/{folder}"
+    };
+
+    private static BehaviorRule DefaultRule(
+        int id, string name, Metric metric, ComparisonOperator op, int threshold, int sourceId, string region, int priority,
+        int? upper = null) => new()
+        {
+            Id = id,
+            Name = name,
+            Metric = metric,
+            Operator = op,
+            Threshold = threshold,
+            ThresholdUpper = upper,
+            AnimationSourceId = sourceId,
+            ZIndex = RegionZIndex(region),
+            ExclusiveGroup = region,
+            Priority = priority
+        };
 
     private static int MovementSourceId(MovementState state) => state switch
     {

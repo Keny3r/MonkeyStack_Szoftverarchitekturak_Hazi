@@ -24,3 +24,4 @@ SQLite adatbázis.
 - [Konfigurációs ablak (GUI terv)](./view.md)
 - [Konfigurációs ablak (implementáció)](./view_implementation.md)
 - [Szerkesztő homlokzat, mintavételezés és léptetés](./editor.md)
+- [Szállított alapkarakter, overlay-ek és alapszabályok](./default_overlays.md)

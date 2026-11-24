@@ -52,7 +52,7 @@ internal sealed class ConfigurationDbContext : DbContext
                 .HasConversion(new TolerantEnumConverter<AnimationSourceType>())
                 .HasMaxLength(EnumTextMaxLength);
             entity.Property(x => x.Path).IsRequired();
-            entity.HasData(ConfigurationDefaults.CreateMovementSources());
+            entity.HasData(ConfigurationDefaults.CreateMovementSources().Concat(ConfigurationDefaults.CreateOverlaySources()));
         });
 
         modelBuilder.Entity<MovementAnimation>(entity =>
@@ -86,6 +86,7 @@ internal sealed class ConfigurationDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.AnimationSourceId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.HasData(ConfigurationDefaults.CreateDefaultRules());
         });
 
         modelBuilder.Entity<CharacterSettings>(entity =>

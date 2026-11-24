@@ -83,6 +83,76 @@ namespace ConfigurationEngine.Storage.Migrations
                             Name = "Alap – Dragging",
                             Path = "movement/dragging",
                             SourceType = "ImageFolder"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Name = "Kis tűz",
+                            Path = "overlays/kis_tuz",
+                            SourceType = "ImageFolder"
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Name = "Nagy tűz",
+                            Path = "overlays/nagy_tuz",
+                            SourceType = "ImageFolder"
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Name = "Hálósapka",
+                            Path = "overlays/halosapka",
+                            SourceType = "ImageFolder"
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Name = "Álmosság",
+                            Path = "overlays/zzz",
+                            SourceType = "ImageFolder"
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Name = "Lemerülőben",
+                            Path = "overlays/lemerulo",
+                            SourceType = "ImageFolder"
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Name = "Unatkozás",
+                            Path = "overlays/unatkozas",
+                            SourceType = "ImageFolder"
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Name = "Ablakkáosz",
+                            Path = "overlays/ablakkaosz",
+                            SourceType = "ImageFolder"
+                        },
+                        new
+                        {
+                            Id = 12,
+                            Name = "Floppytorony",
+                            Path = "overlays/floppytorony",
+                            SourceType = "ImageFolder"
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Name = "Banánhéjak",
+                            Path = "overlays/bananhejak",
+                            SourceType = "ImageFolder"
+                        },
+                        new
+                        {
+                            Id = 14,
+                            Name = "Cetlik",
+                            Path = "overlays/cetlik",
+                            SourceType = "ImageFolder"
                         });
                 });
 
@@ -137,6 +207,136 @@ namespace ConfigurationEngine.Storage.Migrations
                     b.HasIndex("AnimationSourceId");
 
                     b.ToTable("BehaviorRule", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            AnimationSourceId = 5,
+                            ExclusiveGroup = "fejtető",
+                            FramesPerSecond = 10.0,
+                            IsEnabled = true,
+                            Metric = "Cpu",
+                            Name = "Kis tűz",
+                            Operator = "Gt",
+                            Priority = 40,
+                            Threshold = 60,
+                            ZIndex = 20
+                        },
+                        new
+                        {
+                            Id = 2,
+                            AnimationSourceId = 6,
+                            ExclusiveGroup = "oldalak",
+                            FramesPerSecond = 10.0,
+                            IsEnabled = true,
+                            Metric = "Cpu",
+                            Name = "Nagy tűz",
+                            Operator = "Gt",
+                            Priority = 20,
+                            Threshold = 80,
+                            ZIndex = 10
+                        },
+                        new
+                        {
+                            Id = 3,
+                            AnimationSourceId = 7,
+                            ExclusiveGroup = "fejtető",
+                            FramesPerSecond = 10.0,
+                            IsEnabled = true,
+                            Metric = "Time",
+                            Name = "Hálósapka",
+                            Operator = "Between",
+                            Priority = 10,
+                            Threshold = 1320,
+                            ThresholdUpper = 360,
+                            ZIndex = 20
+                        },
+                        new
+                        {
+                            Id = 4,
+                            AnimationSourceId = 8,
+                            ExclusiveGroup = "jobb felső",
+                            FramesPerSecond = 10.0,
+                            IsEnabled = true,
+                            Metric = "Time",
+                            Name = "Álmosság",
+                            Operator = "Between",
+                            Priority = 10,
+                            Threshold = 1320,
+                            ThresholdUpper = 360,
+                            ZIndex = 30
+                        },
+                        new
+                        {
+                            Id = 5,
+                            AnimationSourceId = 9,
+                            ExclusiveGroup = "bal felső",
+                            FramesPerSecond = 10.0,
+                            IsEnabled = true,
+                            Metric = "Battery",
+                            Name = "Lemerülőben",
+                            Operator = "Lt",
+                            Priority = 10,
+                            Threshold = 10,
+                            ZIndex = 30
+                        },
+                        new
+                        {
+                            Id = 6,
+                            AnimationSourceId = 10,
+                            ExclusiveGroup = "jobb felső",
+                            FramesPerSecond = 10.0,
+                            IsEnabled = true,
+                            Metric = "Inactivity",
+                            Name = "Unatkozás",
+                            Operator = "Gt",
+                            Priority = 20,
+                            Threshold = 5,
+                            ZIndex = 30
+                        },
+                        new
+                        {
+                            Id = 7,
+                            AnimationSourceId = 11,
+                            ExclusiveGroup = "fejtető",
+                            FramesPerSecond = 10.0,
+                            IsEnabled = true,
+                            Metric = "WindowCount",
+                            Name = "Ablakkáosz",
+                            Operator = "Gt",
+                            Priority = 30,
+                            Threshold = 10,
+                            ZIndex = 20
+                        },
+                        new
+                        {
+                            Id = 8,
+                            AnimationSourceId = 12,
+                            ExclusiveGroup = "fejtető",
+                            FramesPerSecond = 10.0,
+                            IsEnabled = true,
+                            Metric = "Disk",
+                            Name = "Floppytorony",
+                            Operator = "Gt",
+                            Priority = 20,
+                            Threshold = 99,
+                            ZIndex = 20
+                        },
+                        new
+                        {
+                            Id = 9,
+                            AnimationSourceId = 13,
+                            ExclusiveGroup = "oldalak",
+                            FramesPerSecond = 10.0,
+                            IsEnabled = true,
+                            Metric = "Memory",
+                            Name = "Banánhéjak",
+                            Operator = "Gt",
+                            Priority = 10,
+                            Threshold = 90,
+                            ZIndex = 10
+                        });
                 });
 
             modelBuilder.Entity("ConfigurationEngine.Model.CharacterSettings", b =>
