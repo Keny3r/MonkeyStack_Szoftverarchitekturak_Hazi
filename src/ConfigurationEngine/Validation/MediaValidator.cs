@@ -31,6 +31,14 @@ public sealed class MediaValidator : IMediaValidator
             : Task.Run(() => Validate(source, depth, cancellationToken), cancellationToken);
     }
 
+    public Task<PixelSize> ReadImageSizeAsync(AnimationSource source, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        // A fájl beolvasása és a fejléc értelmezése lassú lehet (hálózati meghajtó, nagy fájl), ezért háttérszálon fut.
+        return Task.Run(() => FrameDecoder.ReadImageSize(source, MediaFiles.List(source, _paths.Resolve(source.Path))), cancellationToken);
+    }
+
     private IReadOnlyList<ValidationError> Validate(AnimationSource source, MediaValidationDepth depth, CancellationToken cancellationToken)
     {
         try

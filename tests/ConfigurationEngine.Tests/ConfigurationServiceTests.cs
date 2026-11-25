@@ -14,11 +14,12 @@ public sealed class ConfigurationServiceTests : IDisposable
 {
     private readonly FakeStore _store = new();
     private readonly FakeFrameLoader _loader = new();
+    private readonly ManualFrameLoop _frameLoop = new();
     private readonly ConfigurationService _service;
 
     public ConfigurationServiceTests()
     {
-        _service = new ConfigurationService(_store, _loader);
+        _service = new ConfigurationService(_store, _loader, new FakeMediaValidator(), _frameLoop);
     }
 
     public void Dispose() => _service.Dispose();
@@ -491,102 +492,11 @@ public sealed class ConfigurationServiceTests : IDisposable
         Time = hour is { } h ? new TimeEventData { Hour = h } : null
     };
 
-    private sealed class FakeStore : IConfigurationStore
-    {
-        public ConfigurationData Data { get; set; } = new();
-
-        public bool Fail { get; set; }
-
-        public int Loads => _loads;
-
-        private int _loads;
-
-        public event EventHandler? Changed;
-
-        public Task<ConfigurationLoadResult> LoadAsync(CancellationToken cancellationToken = default)
-        {
-            Interlocked.Increment(ref _loads);
-            return Fail
-                ? Task.FromException<ConfigurationLoadResult>(new IOException("zárolt adatbázis"))
-                : Task.FromResult(new ConfigurationLoadResult(ModelCopies.Copy(Data), [], false));
-        }
-
-        public Task SaveAsync(ConfigurationData data, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public void RaiseChanged() => Changed?.Invoke(this, EventArgs.Empty);
-    }
-
     /// <summary>A ráküldött folytatásokat sosem futtatja, mint egy blokkolva várakozó UI szál.</summary>
     private sealed class BlockedContext : SynchronizationContext
     {
         public override void Post(SendOrPostCallback d, object? state)
         {
-        }
-    }
-
-    /// <summary>
-    /// Útvonalanként eltérő számú, a kért méretű üres képkockát ad; a <see cref="Failing"/> útvonalakra
-    /// <see cref="MediaLoadException"/>-t, <see cref="Broken"/> esetén más kivételt dob. A <see cref="Gate"/>
-    /// nyitásáig vár, így a tesztek a párhuzamos lefutásokat determinisztikusan állíthatják elő.
-    /// </summary>
-    private sealed class FakeFrameLoader : IFrameLoader
-    {
-        private readonly ConcurrentDictionary<string, int> _calls = new();
-
-        public HashSet<string> Failing { get; } = [];
-
-        public bool Broken { get; set; }
-
-        public bool Yield { get; set; }
-
-        public TaskCompletionSource? Gate { get; set; }
-
-        public TaskCompletionSource Started { get; set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        /// <summary>A kapun túljutott betöltések szélességei.</summary>
-        public ConcurrentBag<int> Widths { get; } = [];
-
-        /// <summary>Útvonalanként megadott képkockaszám; a többi útvonal 2–6 képkockát kap.</summary>
-        public Dictionary<string, int> FrameCounts { get; } = [];
-
-        public int FrameCountOf(string path) =>
-            FrameCounts.TryGetValue(path, out int count) ? count : 2 + (Math.Abs(string.GetHashCode(path, StringComparison.Ordinal)) % 5);
-
-        public int CallsFor(string path) => _calls.GetValueOrDefault(path);
-
-        public async Task<IReadOnlyList<BitmapSource>> LoadFramesAsync(
-            AnimationSource source,
-            int width,
-            int height,
-            CancellationToken cancellationToken = default)
-        {
-            Started.TrySetResult();
-            if (Yield)
-            {
-                await Task.Yield();
-            }
-
-            if (Gate is { } gate)
-            {
-                await gate.Task.WaitAsync(cancellationToken);
-            }
-
-            _calls.AddOrUpdate(source.Path, 1, (_, n) => n + 1);
-            Widths.Add(width);
-            if (Broken)
-            {
-                throw new InvalidOperationException("váratlan hiba");
-            }
-
-            if (Failing.Contains(source.Path))
-            {
-                throw new MediaLoadException($"{source.Path} nem található.") { PropertyName = nameof(AnimationSource.Path) };
-            }
-
-            var frame = BitmapSource.Create(width, height, 96, 96, PixelFormats.Pbgra32, null, new byte[width * height * 4], width * 4);
-            frame.Freeze();
-            return Enumerable.Repeat(frame, FrameCountOf(source.Path)).ToArray();
         }
     }
 }

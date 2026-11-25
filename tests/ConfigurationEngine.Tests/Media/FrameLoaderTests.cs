@@ -153,11 +153,11 @@ public sealed class FrameLoaderTests : IDisposable
     }
 
     [Fact]
-    public async Task ShippedMovementAnimations_AreLoadable()
+    public async Task ShippedAnimations_AreLoadable()
     {
         var loader = new FrameLoader();
 
-        foreach (var source in ConfigurationDefaults.CreateMovementSources())
+        foreach (var source in ConfigurationDefaults.CreateMovementSources().Concat(ConfigurationDefaults.CreateOverlaySources()))
         {
             var frames = await loader.LoadFramesAsync(source, 100, 100);
             Assert.NotEmpty(frames);

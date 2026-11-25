@@ -33,4 +33,12 @@ public interface IMediaValidator
         AnimationSource source,
         MediaValidationDepth depth,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// A forrás képének tényleges mérete pixelben, a képkockák dekódolása nélkül: GIF-nél a vászon, sprite sheetnél a
+    /// teljes kép, képsorozat-mappánál az első kép mérete. A sprite sheet rácsát nem ellenőrzi, így a View eltérő
+    /// rácsnál is megmutathatja a kép méretét a rácsból számolt mellett (view.md, "4. Animációs források").
+    /// </summary>
+    /// <exception cref="Media.MediaLoadException">Ha a fájl nem található, nem olvasható vagy nem dekódolható.</exception>
+    Task<Media.PixelSize> ReadImageSizeAsync(AnimationSource source, CancellationToken cancellationToken = default);
 }

@@ -240,14 +240,59 @@ public sealed class MediaValidatorTests : IDisposable
     }
 
     [Fact]
-    public async Task ShippedMovementAnimations_PassFullValidation()
+    public async Task ShippedAnimations_PassFullValidation()
     {
         var validator = new MediaValidator();
 
-        foreach (var source in ConfigurationDefaults.CreateMovementSources())
+        foreach (var source in ConfigurationDefaults.CreateMovementSources().Concat(ConfigurationDefaults.CreateOverlaySources()))
         {
             Assert.Empty(await validator.ValidateAsync(source, MediaValidationDepth.Full));
         }
+    }
+
+    [Fact]
+    public async Task ReadImageSize_SpriteSheet_IsTheWholeImage_EvenWithMismatchedGrid()
+    {
+        WritePng(Path.Combine(_directory, "sheet.png"), 50, 20, Red);
+        var source = new AnimationSource
+        {
+            Id = 7,
+            Name = "Sheet",
+            SourceType = AnimationSourceType.SpriteSheet,
+            Path = "sheet.png",
+            FrameWidth = 10,
+            FrameHeight = 10,
+            Columns = 4,
+            Rows = 2,
+            FrameCount = 8
+        };
+
+        Assert.Equal(new PixelSize(50, 20), await _validator.ReadImageSizeAsync(source));
+    }
+
+    [Fact]
+    public async Task ReadImageSize_GifIsCanvas_FolderIsFirstImage()
+    {
+        WriteGif(Path.Combine(_directory, "vaszon.gif"), 6, 4, new GifFrame(0, 0, 1, 1, [1], Disposal: 0));
+        Directory.CreateDirectory(Path.Combine(_directory, "kepek"));
+        WritePng(Path.Combine(_directory, "kepek", "01.png"), 12, 8, Green);
+
+        Assert.Equal(new PixelSize(6, 4), await _validator.ReadImageSizeAsync(Gif("vaszon.gif")));
+        Assert.Equal(new PixelSize(12, 8), await _validator.ReadImageSizeAsync(Folder("kepek")));
+    }
+
+    [Fact]
+    public async Task ReadImageSize_MissingFile_Throws()
+    {
+        await Assert.ThrowsAsync<MediaLoadException>(() => _validator.ReadImageSizeAsync(Gif("nincs.gif")));
+    }
+
+    [Fact]
+    public async Task ReadImageSize_PngWithGifExtension_Throws()
+    {
+        WritePng(Path.Combine(_directory, "valojaban-png.gif"), 1, 1, Red);
+
+        await Assert.ThrowsAsync<MediaLoadException>(() => _validator.ReadImageSizeAsync(Gif("valojaban-png.gif")));
     }
 
     private static AnimationSource Gif(string path) =>

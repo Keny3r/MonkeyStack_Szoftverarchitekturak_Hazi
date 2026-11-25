@@ -4,6 +4,7 @@ using ConfigurationEngine;
 using MonkeyStack.Core.Animation;
 using MonkeyStack.Core.Character;
 using MonkeyStack.Core.Events;
+using MonkeyStack.Core.Timing;
 
 namespace CharacterEngine;
 
@@ -27,7 +28,7 @@ public partial class MainWindow : Window
 
     public MainWindow(CharacterEventCoordinator? coordinator, ICharacterPhysicsModel? physicsModel = null)
     {
-        Coordinator = coordinator ?? new CharacterEventCoordinator(new ConfigurationService(), new OsEventNotifier());
+        Coordinator = coordinator ?? new CharacterEventCoordinator(new ConfigurationService(new FrameLoop()), new OsEventNotifier());
         Physics = physicsModel ?? new CharacterPhysicsModel();
         InitializeComponent();
     }

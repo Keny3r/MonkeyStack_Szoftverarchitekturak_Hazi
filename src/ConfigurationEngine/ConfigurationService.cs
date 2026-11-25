@@ -11,22 +11,30 @@ using MonkeyStack.Core.Animation;
 using MonkeyStack.Core.Character;
 using MonkeyStack.Core.Configuration;
 using MonkeyStack.Core.Events;
+using MonkeyStack.Core.Timing;
 
 /// <summary>
 /// A Konfigurációs motor Modell rétege (Component Configurator / Monitor Object minta).
 /// Feladata:
 /// 1. A konfiguráció betöltése a tárolóból, és újratöltése minden sikeres mentés után (<see cref="IConfigurationStore.Changed"/>).
 /// 2. A képek fix méretűre (CharacterWidth x CharacterHeight) skálázása és Animation objektumok létrehozása.
-/// 3. Az összes Animation objektum folyamatos pörgetése (UpdateAnimations).
+/// 3. Az összes Animation objektum (és a konfigurációs ablak előnézeteinek) folyamatos pörgetése a közös
+///    <see cref="IFrameLoop"/> ütemére (UpdateAnimations).
 /// 4. Állapotmentes kiértékelés: a Karakter által lekérdezett mozgás- (1 db IAnimation)
 ///    és overlay animációk (ZIndex szerint rendezett IReadOnlyList&lt;IAnimation&gt;) visszaadása.
-/// Leírás: docs/configuration_engine/service.md.
+/// Három interfészt valósít meg (Extension Interface minta): a Karakter az <see cref="IConfigurationService"/>-t, az
+/// OS motor az <see cref="IPollingSettingsProvider"/>-t, a konfigurációs ablak az <see cref="IConfigurationEditor"/>-t látja.
+/// Leírás: docs/configuration_engine/service.md és docs/configuration_engine/editor.md.
 /// </summary>
-public sealed class ConfigurationService : IConfigurationService, IDisposable
+public sealed class ConfigurationService : IConfigurationService, IPollingSettingsProvider, IConfigurationEditor, IDisposable
 {
     private readonly object _syncRoot = new();
     private readonly IConfigurationStore _store;
     private readonly AnimationSetBuilder _builder;
+    private readonly IMediaValidator _mediaValidator;
+    private readonly IConfigurationValidator _validator = new ConfigurationValidator();
+    private readonly IFrameLoop _frameLoop;
+    private readonly PreviewAnimations _previews;
 
     /// <summary>
     /// Sorosítja az újratöltést és az újraskálázást; a lassú képbetöltés e mögött, a <see cref="_syncRoot"/>-on kívül
@@ -46,6 +54,9 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
     /// <summary>Minden méretváltáskor nő; a korábbi méretre készült, közben elavult felépítés így eldobható.</summary>
     private int _sizeVersion;
 
+    /// <summary>1, ha a szolgáltatás saját betöltése visszaállította az adatbázist, és a View még nem kapta meg a jelzést.</summary>
+    private int _unreportedDatabaseReset;
+
     /// <summary>A folyamatban lévő újraskálázás megszakítása; újabb méretváltáskor a régi méret skálázása leáll.</summary>
     private CancellationTokenSource? _rescaleCancellation;
     private bool _disposed;
@@ -60,19 +71,37 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
     /// A felhasználó adatbázisával (<see cref="SqliteConfigurationStore.DefaultDatabasePath"/>) és a szállított képekkel.
     /// Nem végez I/O-t: a konfiguráció az <see cref="InitializeAsync"/> hívásakor töltődik be.
     /// </summary>
-    public ConfigurationService()
-        : this(new SqliteConfigurationStore(mediaValidator: new MediaValidator()), new FrameLoader())
+    /// <param name="frameLoop">
+    /// A közös léptető, amelynek ütemére az animációk lépnek. A host adja (integrált futásnál ugyanaz, amely a Karakter
+    /// fizikáját is hajtja); a szolgáltatásnak nincs saját időzítője, és a léptetőt nem indítja el és nem dobja el.
+    /// </param>
+    public ConfigurationService(IFrameLoop frameLoop)
+        : this(CreateDefaultStore(out var mediaValidator), new FrameLoader(), mediaValidator, frameLoop)
     {
     }
 
-    public ConfigurationService(IConfigurationStore store, IFrameLoader frameLoader)
+    /// <param name="store">A konfiguráció tárolója.</param>
+    /// <param name="frameLoader">A képkockák betöltője (az animációkhoz és az előnézetekhez).</param>
+    /// <param name="mediaValidator">A konfigurációs ablak teljes médiaellenőrzéséhez és a képméret lekérdezéséhez.</param>
+    /// <param name="frameLoop">A közös léptető (lásd a másik konstruktort).</param>
+    public ConfigurationService(
+        IConfigurationStore store,
+        IFrameLoader frameLoader,
+        IMediaValidator mediaValidator,
+        IFrameLoop frameLoop)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(frameLoader);
+        ArgumentNullException.ThrowIfNull(mediaValidator);
+        ArgumentNullException.ThrowIfNull(frameLoop);
 
         _store = store;
         _builder = new AnimationSetBuilder(frameLoader);
+        _mediaValidator = mediaValidator;
+        _previews = new PreviewAnimations(frameLoader, _characterWidth, _characterHeight);
+        _frameLoop = frameLoop;
         _store.Changed += OnStoreChanged;
+        _frameLoop.Tick += OnFrameTick;
     }
 
     /// <summary>
@@ -80,6 +109,12 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
     /// animációkat. Bármelyik szálon kiváltódhat, és sosem a motor zárja alatt.
     /// </summary>
     public event EventHandler? ConfigurationChanged;
+
+    /// <summary>
+    /// Tüzel, ha egy újratöltés után legalább egy metrika gyakorisága vagy be-/kikapcsolt állapota megváltozott
+    /// (az első betöltés előtt érvényes alapértékekhez képest is). Bármelyik szálon kiváltódhat, sosem a motor zárja alatt.
+    /// </summary>
+    public event EventHandler? PollingSettingsChanged;
 
     public int CharacterWidth
     {
@@ -157,6 +192,7 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
             _characterHeight = newHeight;
             version = ++_sizeVersion;
             ResizeAll(_current);
+            _previews.SetSize(newWidth, newHeight);
 
             previous = _rescaleCancellation;
             _rescaleCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -205,7 +241,8 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
     }
 
     /// <summary>
-    /// Lépteti az összes animációt (a motor időzítője hívja).
+    /// Lépteti az összes animációt és a konfigurációs ablak előnézeteit. A közös <see cref="IFrameLoop"/> minden
+    /// ütemében magától fut; kézzel csak tesztben érdemes hívni.
     /// </summary>
     public void UpdateAnimations(TimeSpan deltaTime)
     {
@@ -216,9 +253,109 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
                 animation.Update(deltaTime);
             }
         }
+
+        _previews.Update(deltaTime);
     }
 
-    /// <summary>Leiratkozik a tárolóról, és megszakítja a folyamatban lévő betöltést és újraskálázást.</summary>
+    /// <summary>
+    /// A metrika lekérdezési gyakorisága a futó konfiguráció szerint; <c>null</c>, ha a metrika ki van kapcsolva.
+    /// Az első betöltés előtt (és a konfigurációból hiányzó metrikánál) a séma alapértéke.
+    /// </summary>
+    public TimeSpan? GetPollingInterval(Metric metric)
+    {
+        lock (_syncRoot)
+        {
+            return PollingInterval(_current.Data, metric);
+        }
+    }
+
+    /// <summary>
+    /// A tárolt konfiguráció: minden hívás új, független másolatot ad (a tároló minden betöltéskor újraolvas). Ha az
+    /// adatbázist a szolgáltatás saját betöltése állította vissza, a következő hívás azt is jelzi, hogy a View
+    /// figyelmeztetése akkor se maradjon el, ha a szolgáltatás töltött be előbb.
+    /// </summary>
+    public async Task<ConfigurationLoadResult> LoadAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await _store.LoadAsync(cancellationToken).ConfigureAwait(false);
+        return Interlocked.Exchange(ref _unreportedDatabaseReset, 0) == 1 ? result with { DatabaseWasReset = true } : result;
+    }
+
+    /// <summary>A mentéssel azonos normalizálás után futtatja a validátort; a <paramref name="data"/> nem változik.</summary>
+    public ValidationResult Validate(ConfigurationData data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+
+        var normalized = data.Copy();
+        ModelCopies.Normalize(normalized);
+        return _validator.Validate(normalized);
+    }
+
+    public Task<IReadOnlyList<ValidationError>> ValidateMediaAsync(
+        AnimationSource source,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return _mediaValidator.ValidateAsync(source.Copy(), MediaValidationDepth.Full, cancellationToken);
+    }
+
+    /// <summary>
+    /// Teljes ellenőrzés (a validátor és minden forrás <see cref="MediaValidationDepth.Full"/> médiaellenőrzése), majd
+    /// mentés a tárolóba. A tároló a mentés után kiváltja a <see cref="IConfigurationStore.Changed"/> eseményt, amelyre a
+    /// szolgáltatás a háttérben újratölt; a visszatérés ezt nem várja meg.
+    /// </summary>
+    /// <exception cref="ConfigurationValidationException">Ha a konfiguráció érvénytelen; ilyenkor semmi nem módosul.</exception>
+    public async Task SaveAsync(ConfigurationData data, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+
+        var normalized = data.Copy();
+        ModelCopies.Normalize(normalized);
+        var errors = _validator.Validate(normalized).Errors.ToList();
+        foreach (var source in normalized.AnimationSources)
+        {
+            errors.AddRange(await _mediaValidator
+                .ValidateAsync(source, MediaValidationDepth.Full, cancellationToken)
+                .ConfigureAwait(false));
+        }
+
+        if (errors.Count > 0)
+        {
+            throw new ConfigurationValidationException(new ValidationResult(errors));
+        }
+
+        // A tároló a saját másolatán újra normalizál és validál, és az új azonosítókat a data objektumaiba írja vissza.
+        await _store.SaveAsync(data, cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task<PixelSize> ReadImageSizeAsync(AnimationSource source, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return _mediaValidator.ReadImageSizeAsync(source.Copy(), cancellationToken);
+    }
+
+    /// <summary>
+    /// Előnézeti animáció a forrás pillanatképéből, az aktuális karakterméretben. A futó konfigurációtól külön
+    /// példány: az újratöltés nem érinti, csak a <see cref="ReleasePreviewAnimation"/> és a
+    /// <see cref="ReleasePreviewAnimations"/>.
+    /// </summary>
+    /// <exception cref="MediaLoadException">Ha a forrás nem tölthető be.</exception>
+    public Task<IAnimation> CreatePreviewAnimationAsync(
+        AnimationSource source,
+        double framesPerSecond,
+        CancellationToken cancellationToken = default) =>
+        _previews.CreateAsync(source, framesPerSecond, cancellationToken);
+
+    public void ReleasePreviewAnimation(IAnimation preview) => _previews.Release(preview);
+
+    public void ReleasePreviewAnimations() => _previews.ReleaseAll();
+
+    /// <summary>A kiadott, még el nem dobott előnézetek száma (tesztekhez).</summary>
+    internal int PreviewCount => _previews.Count;
+
+    /// <summary>
+    /// Leiratkozik a tárolóról és a léptetőről, eldobja az előnézeteket, és megszakítja a folyamatban lévő betöltést és
+    /// újraskálázást. A léptetőt nem dobja el, mert azt a host adta.
+    /// </summary>
     public void Dispose()
     {
         CancellationTokenSource? rescale;
@@ -235,6 +372,8 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
         }
 
         _store.Changed -= OnStoreChanged;
+        _frameLoop.Tick -= OnFrameTick;
+        _previews.Dispose();
 
         // Előbb megszakítás, utána eldobás: a még futó háttérmunka így megszakított tokent lát, nem eldobott forrást.
         _lifetime.Cancel();
@@ -254,6 +393,7 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
 
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetime);
         var token = linked.Token;
+        bool pollingChanged = false;
 
         await _rebuildGate.WaitAsync(token).ConfigureAwait(false);
         try
@@ -270,7 +410,13 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
                 version = _sizeVersion;
             }
 
-            var data = (await _store.LoadAsync(token).ConfigureAwait(false)).Data;
+            var loaded = await _store.LoadAsync(token).ConfigureAwait(false);
+            if (loaded.DatabaseWasReset)
+            {
+                Interlocked.Exchange(ref _unreportedDatabaseReset, 1);
+            }
+
+            var data = loaded.Data;
             int width = ConfigurationLimits.CharacterSizePx.Clamp(data.Character.CharacterWidth);
             int height = ConfigurationLimits.CharacterSizePx.Clamp(data.Character.CharacterHeight);
             var built = await _builder.BuildAsync(data, width, height, token).ConfigureAwait(false);
@@ -285,6 +431,8 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
                 }
 
                 token.ThrowIfCancellationRequested();
+                pollingChanged = Enum.GetValues<Metric>()
+                    .Any(m => PollingInterval(_current.Data, m) != PollingInterval(built.Data, m));
                 _current = built;
                 _rescaleFailures = [];
                 if (version == _sizeVersion)
@@ -292,6 +440,7 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
                     // A mentett méret csak a sikeres csere után érvényes, így a jelentett méret mindig az animációké.
                     (_characterWidth, _characterHeight) = (width, height);
                     _sizeVersion++;
+                    _previews.SetSize(width, height);
                 }
                 else
                 {
@@ -307,6 +456,10 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
         }
 
         OnConfigurationChanged();
+        if (pollingChanged)
+        {
+            Raise(PollingSettingsChanged, nameof(PollingSettingsChanged));
+        }
     }
 
     private async Task RescaleAsync(int version, CancellationToken token)
@@ -402,9 +555,12 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
     /// Kiváltja a <see cref="ConfigurationChanged"/> eseményt. A feliratkozók egymástól függetlenül futnak: egy
     /// feliratkozó kivétele nem éri el a többit, és nem teszi sikertelenné a már megtörtént cserét.
     /// </summary>
-    private void OnConfigurationChanged()
+    private void OnConfigurationChanged() => Raise(ConfigurationChanged, nameof(ConfigurationChanged));
+
+    /// <summary>Kivált egy eseményt úgy, hogy a feliratkozók egymástól függetlenül fussanak (lásd <see cref="OnConfigurationChanged"/>).</summary>
+    private void Raise(EventHandler? handlers, string eventName)
     {
-        if (ConfigurationChanged is not { } handlers)
+        if (handlers is null)
         {
             return;
         }
@@ -417,8 +573,31 @@ public sealed class ConfigurationService : IConfigurationService, IDisposable
             }
             catch (Exception ex)
             {
-                Trace.TraceError($"Egy ConfigurationChanged feliratkozó hibát dobott: {ex}");
+                Trace.TraceError($"Egy {eventName} feliratkozó hibát dobott: {ex}");
             }
         }
+    }
+
+    private void OnFrameTick(object? sender, FrameTickEventArgs e) => UpdateAnimations(e.DeltaTime);
+
+    /// <summary>
+    /// A metrika gyakorisága a konfiguráció szerint (schema.md, "MetricPolling"); <c>null</c> a kikapcsolt metrikánál.
+    /// Konfiguráció nélkül, illetve a hiányzó metrikánál a séma alapértéke.
+    /// </summary>
+    private static TimeSpan? PollingInterval(ConfigurationData? data, Metric metric)
+    {
+        var polling = data?.MetricPollings.FirstOrDefault(p => p.Metric == metric);
+        if (polling is null)
+        {
+            return TimeSpan.FromMilliseconds(ConfigurationDefaults.PollingIntervalMs(metric));
+        }
+
+        return polling.IsEnabled ? TimeSpan.FromMilliseconds(polling.IntervalMs) : null;
+    }
+
+    private static SqliteConfigurationStore CreateDefaultStore(out IMediaValidator mediaValidator)
+    {
+        mediaValidator = new MediaValidator();
+        return new SqliteConfigurationStore(mediaValidator: mediaValidator);
     }
 }
