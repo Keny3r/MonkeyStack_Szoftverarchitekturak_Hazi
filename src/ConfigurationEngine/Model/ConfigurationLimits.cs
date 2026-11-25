@@ -8,6 +8,9 @@ using MonkeyStack.Core.Events;
 public readonly record struct IntRange(int Min, int Max)
 {
     public bool Contains(int value) => value >= Min && value <= Max;
+
+    /// <summary>Az intervallum legközelebbi értéke.</summary>
+    public int Clamp(int value) => Math.Clamp(value, Min, Max);
 }
 
 /// <summary>
@@ -58,6 +61,12 @@ public static class ConfigurationLimits
     /// (100 × 100 px) mind az 500 képkocka belefér, 512 × 512 px-en 64.
     /// </summary>
     public const long MediaMaxLoadedBytes = 64L * 1024 * 1024;
+
+    /// <summary>
+    /// A futó konfiguráció összes betöltött képkockájának legnagyobb együttes mérete (minden forrás együtt), hogy sok
+    /// nagy forrás se foglalhasson korlátlan memóriát. 512 × 512 px-en 256 képkocka.
+    /// </summary>
+    public const long MediaMaxTotalLoadedBytes = 256L * 1024 * 1024;
 
     /// <summary>
     /// Egy forrás dekódolandó pixelei összesen (képkockaszám × képkockaméret), hogy egy jól tömöríthető, apró fájl

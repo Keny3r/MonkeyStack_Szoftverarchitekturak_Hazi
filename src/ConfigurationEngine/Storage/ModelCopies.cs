@@ -79,7 +79,7 @@ internal static class ModelCopies
 
     /// <summary>
     /// A szöveges mezők trimmelése (schema.md: "trimmelve tároljuk"); az üres kizáró csoport <c>null</c> lesz.
-    /// A mentendő másolaton dolgozik, validálás előtt.
+    /// Mentéskor a mentendő másolaton, betöltéskor a beolvasott adaton fut, mindkétszer validálás előtt.
     /// </summary>
     public static void Normalize(ConfigurationData data)
     {
