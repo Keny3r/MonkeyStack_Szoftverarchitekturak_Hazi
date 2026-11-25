@@ -22,3 +22,4 @@ Az OS szintű eseményeket rögzítő komponensek.
 - [Terv (minták, API, mérföldkövek)](./plan.md)
 - [🤖 Agent brief (rövid összefoglaló AI agenteknek)](./AGENT_BRIEF.md)
 - [Javaslat: járható felületek, fullscreen, takarás](./platform_provider_proposal.md)
+- [Megvalósult minták (Reactor, platform-szolgáltató, diagramok)](./patterns_applied.md)

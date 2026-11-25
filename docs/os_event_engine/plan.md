@@ -548,11 +548,11 @@ Minden lépés külön commit / PR. A zárójelben a lefedett minták. Az M1–M
 - [x] **M4 – `OsEventMonitorService` kiépítése:** `Start` / `Reconfigure` / `Dispose` / `GetSnapshot` / `GetMonitorStatus` / `UsePollingSettings` (az M8 szolgáltató-oldala is), a meglévő tagok megtartásával (5.1 táblázat), standalone `App.OnStartup` naplózó feliratkozóval (*Facade*).
 - [x] **M5 – Szimuláció:** `SwitchableSource` (a külön `SimulatedSource` beleolvadt), `SimulationController`, `ISimulationControl`, `IsMockModeEnabled` átkötése (*Strategy*, *Proxy*, *Active Object* jelleg).
 - [x] **M6 – OS Mock View:** `MainWindow` + `OsMockViewModel`, presetek (*MVC/MVVM*).
-- [x] **M7 – Tesztek:** `tests/OsEventEngine.Tests` (xUnit, `FakeTimeProvider`, hamis források; 37 teszt, natív hívás nélkül). A CI minden PR-on futtatja őket (`dotnet test MonkeyStack.slnx`).
+- [x] **M7 – Tesztek:** `tests/OsEventEngine.Tests` (xUnit, `FakeTimeProvider`, hamis források; 37 teszt, natív hívás nélkül). A CI minden PR-on futtatja őket (`dotnet test MonkeyStack.slnx`). Az M9 és az M11 tesztjeivel összesen 70.
 - [ ] **M8 – Integráció (elfogadva a #3-ban):** `Start()` / `Dispose()` a `CharacterEngine` `App`-ban (Gergő és Frink Dávid), `UsePollingSettings` bekötése a Core-beli `IPollingSettingsProvider`-rel (*Component Configurator*).
-- [ ] **M9 – Reactor (opcionális, 2. fázis):** `Win32EventReactor` (WinEvent hook, `WM_POWERBROADCAST`, `WM_TIMECHANGE`) → `TriggerNow` (*Reactor*, *DCLO/Lazy*).
-- [ ] **M10 – Dokumentáció:** a ténylegesen megvalósult mintákat új fájlban dokumentálni (`docs/os_event_engine/patterns_applied.md`), osztály- és szekvenciadiagramokkal, a [Szótárra](../../README.md#szótár) hivatkozva.
-- [ ] **M11 – Platform szolgáltató (elfogadva a #3-ban, A opció):** ✅ `IPlatformProvider` szerződés a Core-ban (#7); `Win32PlatformProvider` az OS motorban, a [platform-javaslat](./platform_provider_proposal.md) döntései szerint (*Wrapper Facade*, *Reactor*, *Half-Sync/Half-Async*).
+- [x] **M9 – Reactor (opcionális, 2. fázis):** `Win32EventReactor` (WinEvent hook, `WM_POWERBROADCAST`, `WM_TIMECHANGE`) → `TriggerNow` (*Reactor*, *DCLO/Lazy*). Kész: `Native/Win32EventReactor` + `Notifications/` (`OsNotification`, `Throttle`), részletek: [patterns_applied.md 2.](./patterns_applied.md#2-reactor-m9).
+- [x] **M10 – Dokumentáció:** a ténylegesen megvalósult mintákat új fájlban dokumentálni (`docs/os_event_engine/patterns_applied.md`), osztály- és szekvenciadiagramokkal, a [Szótárra](../../README.md#szótár) hivatkozva. Kész: [patterns_applied.md](./patterns_applied.md).
+- [x] **M11 – Platform szolgáltató (elfogadva a #3-ban, A opció):** ✅ `IPlatformProvider` szerződés a Core-ban (#7); `Win32PlatformProvider` az OS motorban, a [platform-javaslat](./platform_provider_proposal.md) döntései szerint (*Wrapper Facade*, *Reactor*, *Half-Sync/Half-Async*). Kész: `Platforms/Win32PlatformProvider`, `Platforms/PlatformCalculator`, `Native/Win32DesktopScanner`; a host az `OsEventMonitorService.Platforms`-on éri el ([patterns_applied.md 3.](./patterns_applied.md#3-platform-szolgáltató-m11)).
 
 Az M1–M7 után a komponens önállóan demózható.
 

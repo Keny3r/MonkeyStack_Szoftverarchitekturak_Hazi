@@ -1,7 +1,7 @@
 # Javaslat: járható felületek (platformok) szolgáltatása – `IPlatformProvider`
 
 > Státusz: **ELFOGADVA** a [#3](https://github.com/Keny3r/MonkeyStack_Szoftverarchitekturak_Hazi/pull/3) review-ján (Frink Dávid, Karakter motor). Döntések: [0. fejezet](#0-döntések). Megvalósítás: [OS motor terv, M11](./plan.md#9-megvalósítási-lépések-mérföldkövek).
-> A szerződés (2. fejezet) a #7-tel bekerült a Core-ba: [`IPlatformProvider`](../../src/MonkeyStack.Core/Character/IPlatformProvider.cs), [`PlatformSnapshot`](../../src/MonkeyStack.Core/Character/PlatformSnapshot.cs) (+ `Empty`), [`ScreenArea`](../../src/MonkeyStack.Core/Character/ScreenArea.cs), [`ScreenRect`](../../src/MonkeyStack.Core/Character/ScreenRect.cs). A `Win32PlatformProvider` az M11-ben jön.
+> A szerződés (2. fejezet) a #7-tel bekerült a Core-ba: [`IPlatformProvider`](../../src/MonkeyStack.Core/Character/IPlatformProvider.cs), [`PlatformSnapshot`](../../src/MonkeyStack.Core/Character/PlatformSnapshot.cs) (+ `Empty`), [`ScreenArea`](../../src/MonkeyStack.Core/Character/ScreenArea.cs), [`ScreenRect`](../../src/MonkeyStack.Core/Character/ScreenRect.cs). A `Win32PlatformProvider` elkészült (M11): [`Platforms/`](../../src/OsEventEngine/Platforms/), a host az `OsEventMonitorService.Platforms`-on éri el. Leírás: [patterns_applied.md 3.](./patterns_applied.md#3-platform-szolgáltató-m11).
 > Szerző: OS esemény értesítő motor felelőse · Kapcsolódó: [OS motor terv](./plan.md) · [MVC terv](../mvc_architecture.md) · [Szótár](../../README.md#szótár)
 
 ---

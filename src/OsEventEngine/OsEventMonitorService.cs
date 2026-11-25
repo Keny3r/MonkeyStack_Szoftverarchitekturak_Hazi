@@ -1,8 +1,12 @@
 namespace OsEventEngine;
 
+using MonkeyStack.Core.Character;
 using MonkeyStack.Core.Events;
 using OsEventEngine.Monitoring;
+using OsEventEngine.Native;
+using OsEventEngine.Notifications;
 using OsEventEngine.Pipeline;
+using OsEventEngine.Platforms;
 using OsEventEngine.Simulation;
 using OsEventEngine.Sources;
 using OsEventEngine.State;
@@ -22,11 +26,17 @@ public class OsEventMonitorService : IDisposable
 {
     private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(1);
 
+    /// <summary>Az OS értesítések összevonási ideje: egy ablak megnyitásakor jövő tucatnyi értesítés egy mintavétel.</summary>
+    private static readonly TimeSpan NotificationThrottle = TimeSpan.FromMilliseconds(200);
+
     private readonly TimeProvider _timeProvider;
     private readonly IReadOnlyDictionary<Metric, SwitchableSource> _sources;
     private readonly SimulationController _simulation;
     private readonly MetricSnapshotStore _snapshot = new();
     private readonly object _lifecycle = new();
+    private readonly Lazy<IOsNotificationSource?> _notifications;
+    private readonly Lazy<Win32PlatformProvider> _platforms;
+    private readonly List<IDisposable> _notificationRegistrations = [];
 
     private OsEventEngineOptions _options;
     private IPollingSettingsProvider? _pollingSettings;
@@ -43,16 +53,21 @@ public class OsEventMonitorService : IDisposable
         OsEventNotifier? notifier = null,
         OsEventEngineOptions? options = null,
         TimeProvider? timeProvider = null)
-        : this(notifier, options, timeProvider, sourceFactory: null)
+        : this(notifier, options, timeProvider, sourceFactory: null, () => new Win32EventReactor(), () => new Win32DesktopScanner())
     {
     }
 
-    /// <summary>Tesztekhez: a mérési források cserélhetők (natív hívás nélküli futás).</summary>
+    /// <summary>
+    /// Tesztekhez: a mérési források, az OS értesítések és az asztal lekérdezése cserélhetők (natív hívás nélküli futás).
+    /// <paramref name="notificationsFactory"/> = <c>null</c> → nincs OS értesítés, csak pollozás.
+    /// </summary>
     internal OsEventMonitorService(
         OsEventNotifier? notifier,
         OsEventEngineOptions? options,
         TimeProvider? timeProvider,
-        Func<TimeProvider, IEnumerable<IMetricSource>>? sourceFactory)
+        Func<TimeProvider, IEnumerable<IMetricSource>>? sourceFactory,
+        Func<IOsNotificationSource>? notificationsFactory = null,
+        Func<IDesktopScanner>? scannerFactory = null)
     {
         Notifier = notifier ?? new OsEventNotifier();
         _options = options ?? OsEventEngineOptions.Default;
@@ -62,6 +77,18 @@ public class OsEventMonitorService : IDisposable
         _sources = (sourceFactory ?? CreateLiveSources)(_timeProvider)
             .ToDictionary(s => s.Metric, s => new SwitchableSource(s, MetricCatalog.Descriptor(s.Metric)));
         _simulation = new SimulationController(_sources, FindMonitor);
+
+        // Lusta, szálbiztos létrehozás (DCLO helyett Lazy<T>): a Reactor szál és a platform-szolgáltató csak az első használatkor indul.
+        _notifications = new Lazy<IOsNotificationSource?>(() => notificationsFactory?.Invoke(), LazyThreadSafetyMode.ExecutionAndPublication);
+        _platforms = new Lazy<Win32PlatformProvider>(
+            () =>
+            {
+                var scanner = scannerFactory?.Invoke() ?? new Win32DesktopScanner();
+                var provider = new Win32PlatformProvider(scanner, _notifications.Value, _timeProvider);
+                provider.Start();
+                return provider;
+            },
+            LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
     /// <summary>
@@ -69,6 +96,25 @@ public class OsEventMonitorService : IDisposable
     /// A <c>Notify…Changed</c> metódusait konvenció szerint csak ez a szolgáltatás hívja.
     /// </summary>
     public OsEventNotifier Notifier { get; }
+
+    /// <summary>
+    /// A járható felületek (ablakperemek, tálca / képernyő alja) szolgáltatója a Karakter fizikának (M11,
+    /// docs/os_event_engine/platform_provider_proposal.md). Az első lekéréskor indul, a <see cref="Start"/>-tól függetlenül,
+    /// és a <see cref="Dispose"/> állítja le. A <see cref="IPlatformProvider.Current"/> lock nélkül, minden fizika tickben olvasható.
+    /// </summary>
+    /// <exception cref="ObjectDisposedException">A <see cref="Dispose"/> után.</exception>
+    public IPlatformProvider Platforms
+    {
+        get
+        {
+            lock (_lifecycle)
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+            }
+
+            return _platforms.Value;
+        }
+    }
 
     /// <summary>A jelenleg érvényes beállítások.</summary>
     public OsEventEngineOptions Options => Volatile.Read(ref _options);
@@ -143,6 +189,7 @@ public class OsEventMonitorService : IDisposable
 
             _monitors = new MonitorRepository(_sources.Values, _dispatcher.Writer, _timeProvider);
             _monitors.Apply(Options);
+            RegisterOsNotifications();
         }
     }
 
@@ -244,6 +291,12 @@ public class OsEventMonitorService : IDisposable
                 _pollingSettings = null;
             }
 
+            foreach (var registration in _notificationRegistrations)
+            {
+                registration.Dispose();
+            }
+
+            _notificationRegistrations.Clear();
             var monitorsStopped = _monitors?.FiniAllAsync() ?? Task.CompletedTask;
             _cts?.Cancel();
             _dispatcher?.Writer.TryComplete();
@@ -261,6 +314,16 @@ public class OsEventMonitorService : IDisposable
         }
 
         _cts?.Dispose();
+        if (_platforms.IsValueCreated)
+        {
+            _platforms.Value.Dispose();
+        }
+
+        if (_notifications.IsValueCreated && _notifications.Value is IDisposable notifications)
+        {
+            notifications.Dispose();
+        }
+
         GC.SuppressFinalize(this);
     }
 
@@ -274,6 +337,47 @@ public class OsEventMonitorService : IDisposable
         new TimeSource(timeProvider),
         new InactivitySource(),
     ];
+
+    /// <summary>
+    /// Reactor (M9): az OS értesítések → azonnali mintavétel a megfelelő monitoron (összevonva). A handler nem mér,
+    /// csak <see cref="IMetricMonitor.TriggerNow"/>-t kér, így a mérés és a lánc egy helyen marad. A <c>_lifecycle</c> zárban hívjuk.
+    /// </summary>
+    private void RegisterOsNotifications()
+    {
+        if (_notifications.Value is not { } source)
+        {
+            return;
+        }
+
+        (OsNotification Notification, Metric[] Metrics)[] routes =
+        [
+            (OsNotification.WindowsChanged, [Metric.WindowCount]),
+            (OsNotification.PowerStatusChanged, [Metric.Battery]),
+            (OsNotification.TimeChanged, [Metric.Time, Metric.Inactivity]),
+            (OsNotification.Resumed, [.. MetricCatalog.All]),
+        ];
+
+        foreach (var (notification, metrics) in routes)
+        {
+            var throttle = new Throttle(NotificationThrottle, _timeProvider, () => TriggerMonitors(metrics));
+            _notificationRegistrations.Add(throttle);
+            _notificationRegistrations.Add(source.Register(notification, () =>
+            {
+                if (Options.EnableOsNotifications)
+                {
+                    throttle.Signal();
+                }
+            }));
+        }
+    }
+
+    private void TriggerMonitors(IEnumerable<Metric> metrics)
+    {
+        foreach (var metric in metrics)
+        {
+            FindMonitor(metric)?.TriggerNow();
+        }
+    }
 
     private IMetricMonitor? FindMonitor(Metric metric)
     {

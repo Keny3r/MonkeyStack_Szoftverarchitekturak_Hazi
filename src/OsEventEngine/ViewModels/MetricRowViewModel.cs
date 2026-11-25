@@ -111,6 +111,12 @@ internal sealed class MetricRowViewModel : ObservableObject
                 // Élő módban a csúszka követi a mért értéket, így szimulációra váltva onnan indul.
                 SliderValue = Math.Clamp(liveValue, Descriptor.Min, Descriptor.Max);
             }
+            else if (IsSimulated)
+            {
+                // Szimulált módban a csúszka a modellben beállított értéket mutatja, így a preset vagy más komponens
+                // (pl. teszt) által beállított érték is látszik. A húzott csúszka értéke már a modellben van, ezért nem ugrik vissza.
+                SliderValue = Math.Clamp(_service.SimulationController.GetSimulatedValue(metric), Descriptor.Min, Descriptor.Max);
+            }
 
             LiveText = live is int l ? Format(l) + (IsSimulated ? " (utolsó)" : string.Empty) : "–";
             if (_service.TryGetSentSample(metric, out var sent))

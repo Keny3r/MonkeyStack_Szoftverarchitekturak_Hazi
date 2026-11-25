@@ -27,6 +27,12 @@ public sealed record OsEventEngineOptions
     /// <summary>Minden kimenő esemény naplózása (Debug kimenet).</summary>
     public bool EnableLogging { get; init; }
 
+    /// <summary>
+    /// OS értesítések (Reactor, M9): ablak megjelenés / eltűnés, tápellátás, időváltás, ébredés esetén azonnali mintavétel
+    /// a periódus kivárása nélkül. A pollozás ettől függetlenül megmarad biztonsági hálónak.
+    /// </summary>
+    public bool EnableOsNotifications { get; init; } = true;
+
     // A sorrend számít: a statikus mezők deklarációs sorrendben inicializálódnak, és a Default már a DefaultMonitors-t használja.
 
     /// <summary>Az alapértelmezett metrikánkénti beállítások.</summary>

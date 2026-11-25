@@ -11,7 +11,8 @@ internal readonly record struct TopLevelWindow(IntPtr Handle, bool IsMinimized);
 /// A felhasználó számára látható ("Alt-Tab") felső szintű ablakok felsorolása Z-sorrendben, elölről hátra
 /// (Wrapper Facade az <c>EnumWindows</c> és a DWM fölött). A saját folyamat ablakait kihagyja, hogy a
 /// screenmate, a konfigurációs ablak és az OS Mock View ne számítson.
-/// A platform-szolgáltató (docs/os_event_engine/platform_provider_proposal.md, M11) is erre épül majd.
+/// A platform-szolgáltató (docs/os_event_engine/platform_provider_proposal.md, M11) ugyanezt a szűrést használja
+/// (<see cref="Win32DesktopScanner"/>), így az ablakszám és a járható ablakok halmaza konzisztens.
 /// </summary>
 internal static class WindowEnumerator
 {
@@ -35,7 +36,7 @@ internal static class WindowEnumerator
         return result;
     }
 
-    private static bool IsUserWindow(IntPtr hWnd)
+    internal static bool IsUserWindow(IntPtr hWnd)
     {
         if (!NativeMethods.IsWindowVisible(hWnd))
         {
