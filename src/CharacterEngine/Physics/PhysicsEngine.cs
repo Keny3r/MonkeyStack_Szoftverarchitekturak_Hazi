@@ -78,6 +78,42 @@ public class PhysicsEngine : IPhysicsEngine
         return best;
     }
 
+    public PlatformSegment? FindFallbackGround(double x, double y, IReadOnlyList<PlatformSegment> platforms)
+    {
+        ArgumentNullException.ThrowIfNull(platforms);
+
+        PlatformSegment? lowestAtX = null;
+        PlatformSegment? nearest = null;
+        double nearestDistance = double.MaxValue;
+
+        foreach (var platform in platforms)
+        {
+            if (platform.ContainsX(x))
+            {
+                if (platform.Y >= y)
+                {
+                    return null; // van alatta platform: rendes esés, nincs mit menteni
+                }
+
+                if (lowestAtX is null || platform.Y > lowestAtX.Value.Y)
+                {
+                    lowestAtX = platform;
+                }
+
+                continue;
+            }
+
+            double distance = x < platform.LeftX ? platform.LeftX - x : x - platform.RightX;
+            if (distance < nearestDistance || (distance == nearestDistance && platform.Y > nearest!.Value.Y))
+            {
+                nearest = platform;
+                nearestDistance = distance;
+            }
+        }
+
+        return lowestAtX ?? nearest;
+    }
+
     public bool HitTest(double x, double y, int width, int height, double cursorX, double cursorY)
     {
         if (width <= 0 || height <= 0)

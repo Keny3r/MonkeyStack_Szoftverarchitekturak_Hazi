@@ -42,6 +42,23 @@ public interface IPhysicsEngine
     PlatformSegment? FindSupportingPlatform(double x, double y, IReadOnlyList<PlatformSegment> platforms);
 
     /// <summary>
+    /// Mentőháló az elveszett karakterhez: ha a talppont alatt az X-nél egyetlen platform sincs (pl. a tálca alá vagy
+    /// a monitorokon kívülre húzták), megadja a talajt, amelyre át kell helyezni.
+    /// <list type="bullet">
+    /// <item>Ha van platform az X fölött, a legalsó közülük. A platform-szolgáltató az ablakperemeket a munkaterületre vágja,
+    /// a talajt (tálca teteje, illetve képernyő alja) pedig a munkaterület teljes szélességében adja meg, ezért ez mindig a
+    /// talaj, sosem egy ablakperem (docs/os_event_engine/platform_provider_proposal.md, 3.4).</item>
+    /// <item>Ha az X egyetlen platform fölött sincs (a monitorokon kívül), a vízszintesen legközelebbi platform; egyenlő
+    /// távolságnál a legalsó, ami ugyanezért a talaj.</item>
+    /// </list>
+    /// </summary>
+    /// <returns>
+    /// A talaj, vagy <c>null</c>, ha nincs szükség mentésre (van platform a karakter alatt), illetve ha egyáltalán nincs
+    /// platform. A karakter X-ét a hívó igazítja a visszaadott szakaszra.
+    /// </returns>
+    PlatformSegment? FindFallbackGround(double x, double y, IReadOnlyList<PlatformSegment> platforms);
+
+    /// <summary>
     /// Igaz, ha a kurzor a karakter befoglaló téglalapján belül van
     /// (<c>[x - width/2, x + width/2] × [y - height, y]</c>, a széleket is beleértve). A megragadás (Dragging) indításához.
     /// </summary>

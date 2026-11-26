@@ -180,4 +180,55 @@ public class PhysicsEngineTests
     {
         Assert.False(_engine.HitTest(x: 100, y: 200, width: 0, height: 60, cursorX: 100, cursorY: 200));
     }
+
+    // --- Mentőháló (talaj keresése az elveszett karakternek) ---
+    // Egy 1920 px széles monitor, a tálca teteje (talaj) 1040-nél, és egy ablakperem 500-nál, 200..800 között,
+    // ahogy a platform-szolgáltató adja: az ablakperem a munkaterületen belül, a talaj a teljes szélességben.
+
+    private static readonly PlatformSegment Taskbar = new(Y: 1040, LeftX: 0, RightX: 1920);
+    private static readonly PlatformSegment WindowEdge = new(Y: 500, LeftX: 200, RightX: 800);
+
+    [Fact]
+    public void FindFallbackGround_PlatformBelow_ReturnsNull()
+    {
+        // Rendes esés: a karakter a talaj fölött van, nincs mit menteni.
+        Assert.Null(_engine.FindFallbackGround(x: 400, y: 700, [WindowEdge, Taskbar]));
+    }
+
+    [Fact]
+    public void FindFallbackGround_NoPlatformsAtAll_ReturnsNull()
+    {
+        Assert.Null(_engine.FindFallbackGround(x: 400, y: 2000, []));
+    }
+
+    [Fact]
+    public void FindFallbackGround_BelowTaskbar_ReturnsTaskbarNotWindowEdge()
+    {
+        // A tálca alá húzva: az X fölött az ablakperem és a talaj is ott van, de csak a talajra kerülhet.
+        Assert.Equal(Taskbar, _engine.FindFallbackGround(x: 400, y: 1060, [WindowEdge, Taskbar]));
+    }
+
+    [Fact]
+    public void FindFallbackGround_OutsideMonitors_ReturnsNearestGround()
+    {
+        // A monitortól jobbra: a talaj és az ablakperem közül a vízszintesen közelebbi a talaj.
+        Assert.Equal(Taskbar, _engine.FindFallbackGround(x: 2100, y: 300, [WindowEdge, Taskbar]));
+    }
+
+    [Fact]
+    public void FindFallbackGround_OutsideMonitors_EqualDistance_PrefersLowest()
+    {
+        // Ha egy ablakperem a monitor széléig ér, a távolság egyenlő: ilyenkor a legalsó, azaz a talaj nyer.
+        var edgeToTheRim = new PlatformSegment(Y: 500, LeftX: 1500, RightX: 1920);
+
+        Assert.Equal(Taskbar, _engine.FindFallbackGround(x: 2100, y: 300, [edgeToTheRim, Taskbar]));
+    }
+
+    [Fact]
+    public void FindFallbackGround_TwoMonitors_ReturnsGroundOfNearestMonitor()
+    {
+        var rightMonitorGround = new PlatformSegment(Y: 1400, LeftX: 1920, RightX: 4480);
+
+        Assert.Equal(rightMonitorGround, _engine.FindFallbackGround(x: 5000, y: 300, [Taskbar, rightMonitorGround]));
+    }
 }

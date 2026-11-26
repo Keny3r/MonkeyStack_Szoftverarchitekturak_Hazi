@@ -35,6 +35,12 @@ public class MovementStateMachineTests
 
     private static readonly PlatformSegment Floor = new(Y: 100, LeftX: 0, RightX: 200);
 
+    /// <summary>
+    /// Nagyon mélyen lévő, nagyon széles talaj. Üres platformlistánál a karakter helyben marad, és platform nélkül a
+    /// mentőháló is közbeszólna; ez fölött viszont a tesztek ideje alatt szabadon esik, és nem landol.
+    /// </summary>
+    private static readonly PlatformSegment DeepGround = new(Y: 100_000, LeftX: -100_000, RightX: 100_000);
+
     private readonly MovementStateMachine _machine;
 
     /// <summary>A véletlen kezdőirány helyett ezt adja az állapotgép (a tesztek állítják).</summary>
@@ -52,11 +58,11 @@ public class MovementStateMachineTests
     private void StepWithMouse(double cursorX, double cursorY, bool isMouseDown, params PlatformSegment[] platforms) =>
         _machine.Step(Input(Tick, platforms) with { CursorX = cursorX, CursorY = cursorY, IsMouseDown = isMouseDown });
 
-    /// <summary>Egy lépést tesz, és visszaadja, mennyit mozdult lefelé a karakter.</summary>
-    private double StepAndMeasureFall(params PlatformSegment[] platforms)
+    /// <summary>Egy lépést tesz a mély talaj fölött, és visszaadja, mennyit mozdult lefelé a karakter.</summary>
+    private double StepAndMeasureFall()
     {
         double before = _machine.Y;
-        _machine.Step(Input(Tick, platforms));
+        _machine.Step(Input(Tick, DeepGround));
         return _machine.Y - before;
     }
 
@@ -130,7 +136,7 @@ public class MovementStateMachineTests
         _machine.SetPosition(x: 300, y: 95);
         var platform = new PlatformSegment(Y: 100, LeftX: 0, RightX: 200);
 
-        _machine.Step(Input(Tick, platform));
+        _machine.Step(Input(Tick, platform, DeepGround));
 
         Assert.Equal(MovementState.Falling, _machine.State);
         Assert.Equal(105.0, _machine.Y, Precision);
@@ -140,7 +146,7 @@ public class MovementStateMachineTests
     public void Step_LongDeltaTime_IsClampedToMaxDeltaTime()
     {
         // Egy 10 másodperces akadás után is csak 0,1 s-nyit esik, nem ugrik át mindenen.
-        _machine.Step(Input(TimeSpan.FromSeconds(10)));
+        _machine.Step(Input(TimeSpan.FromSeconds(10), DeepGround));
 
         Assert.Equal(FirstStepFromRest, _machine.Y, Precision);
     }
@@ -498,5 +504,61 @@ public class MovementStateMachineTests
         StepWithMouse(cursorX: 50, cursorY: 70, isMouseDown: true, Floor);
 
         Assert.Equal(MovementState.Dragging, _machine.State);
+    }
+
+    // --- Üres platformlista és mentőháló ---
+
+    private static readonly PlatformSegment Taskbar = new(Y: 1040, LeftX: 0, RightX: 1920);
+    private static readonly PlatformSegment WindowEdge = new(Y: 500, LeftX: 200, RightX: 800);
+
+    [Fact]
+    public void Falling_NoPlatformDataYet_HoldsPositionUntilPlatformsArrive()
+    {
+        _machine.SetPosition(x: 960, y: 0);
+
+        StepTimes(10); // pl. a platform-szolgáltató még nem adott pillanatképet
+
+        Assert.Equal(0.0, _machine.Y);
+        Assert.Equal(MovementState.Falling, _machine.State);
+
+        _machine.Step(Input(Tick, Taskbar)); // megjöttek a platformok: innen nyugalomból esik
+        Assert.Equal(FirstStepFromRest, _machine.Y, Precision);
+    }
+
+    [Fact]
+    public void ReleasedBelowTaskbar_LandsOnTaskbarNotOnWindowEdge()
+    {
+        // A tálcára húzva és ott elengedve: a tálca tetejére kerül, az X fölötti ablakperemre nem.
+        _machine.SetPosition(x: 400, y: 1060);
+
+        _machine.Step(Input(Tick, WindowEdge, Taskbar));
+
+        Assert.Equal(MovementState.Idle, _machine.State);
+        Assert.Equal(Taskbar.Y, _machine.Y);
+        Assert.Equal(400.0, _machine.X);
+    }
+
+    [Fact]
+    public void ReleasedOutsideMonitors_LandsOnNearestEndOfGround()
+    {
+        _machine.SetPosition(x: 2100, y: 300);
+
+        _machine.Step(Input(Tick, WindowEdge, Taskbar));
+
+        Assert.Equal(MovementState.Idle, _machine.State);
+        Assert.Equal(Taskbar.Y, _machine.Y);
+        Assert.Equal(Taskbar.RightX, _machine.X);
+    }
+
+    [Fact]
+    public void ReleasedAboveGround_FallsNormallyWithoutRescue()
+    {
+        // A mentőháló csak akkor szól közbe, ha alatta tényleg nincs semmi: itt az ablakperemre esik rendesen.
+        _machine.SetPosition(x: 400, y: 495);
+
+        _machine.Step(Input(Tick, WindowEdge, Taskbar));
+
+        Assert.Equal(MovementState.Idle, _machine.State);
+        Assert.Equal(WindowEdge.Y, _machine.Y);
     }
 }

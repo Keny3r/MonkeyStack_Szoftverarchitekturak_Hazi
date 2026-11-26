@@ -107,6 +107,21 @@ public class MovementStateMachine : IMovementStateMachine
 
     private void StepFalling(TimeSpan deltaTime, IReadOnlyList<PlatformSegment> platforms)
     {
+        // Még nincs platform-adat (indulás előtt, standalone futás): helyben marad, különben kiesne a képernyőről, és
+        // a később érkező platformok mind fölötte lennének.
+        if (platforms.Count == 0)
+        {
+            return;
+        }
+
+        // A tálca alá vagy a monitorokon kívülre húzott karakter alatt nincs semmi, ezért örökre esne: a talajra tesszük.
+        if (_physics.FindFallbackGround(X, Y, platforms) is { } ground)
+        {
+            X = Math.Clamp(X, ground.LeftX, ground.RightX);
+            Land(ground);
+            return;
+        }
+
         double previousY = Y;
         var (newY, newVelocity) = _physics.ApplyGravity(Y, _velocityY, deltaTime);
 
