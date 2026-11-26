@@ -27,7 +27,20 @@ public class MovementStateMachineTests
 
     private static readonly TimeSpan Tick = TimeSpan.FromMilliseconds(100);
 
-    private readonly MovementStateMachine _machine = new(new PhysicsEngine(TestSettings));
+    // Az Idle → Walking átmenet 2 s, azaz pontosan 20 darab 0,1 s-os lépés (a TimeSpan egész tickekben számol).
+    private static readonly int TicksUntilWalking = (int)(CharacterPhysicsModel.IdleDuration / Tick);
+
+    private static readonly PlatformSegment Floor = new(Y: 100, LeftX: 0, RightX: 200);
+
+    private readonly MovementStateMachine _machine;
+
+    /// <summary>A véletlen kezdőirány helyett ezt adja az állapotgép (a tesztek állítják).</summary>
+    private bool _nextFacingLeft;
+
+    public MovementStateMachineTests()
+    {
+        _machine = new MovementStateMachine(new PhysicsEngine(TestSettings), () => _nextFacingLeft);
+    }
 
     private static MovementInput Input(TimeSpan deltaTime, params PlatformSegment[] platforms) =>
         new(deltaTime, platforms, CursorX: 0, CursorY: 0, IsMouseDown: false, CharacterWidth: 40, CharacterHeight: 60);
@@ -38,6 +51,22 @@ public class MovementStateMachineTests
         double before = _machine.Y;
         _machine.Step(Input(Tick, platforms));
         return _machine.Y - before;
+    }
+
+    /// <summary>A karaktert a <see cref="Floor"/> platformra teszi, és landoltatja (Idle állapotba hozza).</summary>
+    private void LandOnFloor(double x = 50)
+    {
+        _machine.SetPosition(x, Floor.Y);
+        _machine.Step(Input(Tick, Floor));
+        Assert.Equal(MovementState.Idle, _machine.State);
+    }
+
+    private void StepTimes(int count, params PlatformSegment[] platforms)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            _machine.Step(Input(Tick, platforms));
+        }
     }
 
     [Fact]
@@ -133,5 +162,96 @@ public class MovementStateMachineTests
 
         Assert.Equal(MovementState.Idle, _machine.State);
         Assert.Equal(100.0, _machine.Y);
+    }
+
+    // --- Idle ---
+
+    [Fact]
+    public void Idle_BeforeIdleDuration_StaysInPlace()
+    {
+        LandOnFloor(x: 50);
+
+        StepTimes(TicksUntilWalking - 1, Floor); // 1,9 s
+
+        Assert.Equal(MovementState.Idle, _machine.State);
+        Assert.Equal(50.0, _machine.X);
+        Assert.Equal(Floor.Y, _machine.Y);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Idle_AfterIdleDuration_StartsWalkingInChosenDirection(bool facingLeft)
+    {
+        _nextFacingLeft = facingLeft;
+        LandOnFloor();
+
+        StepTimes(TicksUntilWalking, Floor); // 2,0 s
+
+        Assert.Equal(MovementState.Walking, _machine.State);
+        Assert.Equal(facingLeft, _machine.IsFacingLeft);
+    }
+
+    [Fact]
+    public void Idle_PlatformDisappears_StartsFalling()
+    {
+        LandOnFloor();
+
+        _machine.Step(Input(Tick)); // az ablakot bezárták: nincs platform
+
+        Assert.Equal(MovementState.Falling, _machine.State);
+    }
+
+    [Fact]
+    public void Idle_PlatformMovedBeyondTolerance_StartsFalling()
+    {
+        LandOnFloor();
+
+        _machine.Step(Input(Tick, Floor with { Y = Floor.Y + 5 })); // az ablakot 5 px-szel lejjebb húzták
+
+        Assert.Equal(MovementState.Falling, _machine.State);
+    }
+
+    [Fact]
+    public void Idle_PlatformMovedWithinTolerance_StaysIdleAndFollowsEdge()
+    {
+        LandOnFloor();
+        var shifted = Floor with { Y = Floor.Y + 0.5 };
+
+        _machine.Step(Input(Tick, shifted));
+
+        Assert.Equal(MovementState.Idle, _machine.State);
+        Assert.Equal(shifted.Y, _machine.Y);
+    }
+
+    [Fact]
+    public void Idle_FallingAgainAfterLanding_StartsFromRest()
+    {
+        // A landolás nullázza a sebességet: az újabb esés első lépése ugyanannyi, mint nyugalomból.
+        _machine.SetPosition(x: 50, y: 0);
+        StepTimes(9, Floor);                       // 0 → 100 px esés, közben gyorsul
+        Assert.Equal(MovementState.Idle, _machine.State);
+
+        _machine.Step(Input(Tick));                // eltűnik a platform → Falling
+
+        Assert.Equal(FirstStepFromRest, StepAndMeasureFall(), Precision);
+    }
+
+    [Fact]
+    public void Idle_TimerRestartsAfterEveryLanding()
+    {
+        var lower = new PlatformSegment(Y: 105, LeftX: 0, RightX: 200);
+        LandOnFloor();
+        StepTimes(TicksUntilWalking - 5, Floor);   // 1,5 s tétlenség
+
+        _machine.Step(Input(Tick, lower));         // a felső eltűnik → Falling
+        _machine.Step(Input(Tick, lower));         // 100 → 110 lenne, a 105-ös peremen landol
+        Assert.Equal(MovementState.Idle, _machine.State);
+
+        StepTimes(TicksUntilWalking - 1, lower);   // ha nem nullázódna, már rég sétálna
+        Assert.Equal(MovementState.Idle, _machine.State);
+
+        _machine.Step(Input(Tick, lower));
+        Assert.Equal(MovementState.Walking, _machine.State);
     }
 }
