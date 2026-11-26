@@ -1,12 +1,21 @@
 namespace CharacterEngine;
 
+using CharacterEngine.Physics;
+using CharacterEngine.StateMachine;
 using MonkeyStack.Core.Character;
 
 /// <summary>
-/// A karakter fizikai modelljének és mozgási állapotgépének váza.
+/// A karakter fizikai modellje: az <see cref="ICharacterPhysicsModel"/> homlokzata a belső fizikai motor
+/// (<see cref="IPhysicsEngine"/>) és a mozgási állapotgép (<see cref="IMovementStateMachine"/>) előtt
+/// (docs/character_engine/architecture.md, 2. pont). Saját logikája nincs, a hívásokat az állapotgépnek adja tovább.
 /// A karakter pozíciója (X, Y) a karakter képének alsó-középső pontja (bottom-center pivot).
 /// Állapotmentesen kapja meg a látható ablakperemeket (PlatformSegment) minden tickben (~60 FPS).
 /// </summary>
+/// <remarks>
+/// Nem szálbiztos. Feltevés, amelyet még egyeztetni kell a Karakter motor másik felelősével: az <see cref="Update"/>-et és a
+/// tulajdonságokat kizárólag a <c>RenderManager</c> hívja a saját zárja alatt, a <see cref="SetPosition"/>-t pedig csak a
+/// léptető (<c>IFrameLoop</c>) bekötése előtt, vagy ugyanezen zár alatt szabad hívni.
+/// </remarks>
 public class CharacterPhysicsModel : ICharacterPhysicsModel
 {
     /// <summary>
@@ -19,10 +28,35 @@ public class CharacterPhysicsModel : ICharacterPhysicsModel
     /// </summary>
     public static readonly TimeSpan IdleDuration = TimeSpan.FromSeconds(2.0);
 
-    public double X { get; set; }
-    public double Y { get; set; }
-    public MovementState State { get; private set; } = MovementState.Falling;
-    public bool IsFacingLeft { get; private set; }
+    private readonly IMovementStateMachine _stateMachine;
+
+    /// <summary>
+    /// A futó alkalmazás modellje: valódi fizikai motor az alapértelmezett paraméterekkel
+    /// (<see cref="PhysicsSettings.Default"/>) és véletlen kezdőirányú séta.
+    /// </summary>
+    public CharacterPhysicsModel()
+        : this(new MovementStateMachine(new PhysicsEngine()))
+    {
+    }
+
+    /// <summary>Saját állapotgéppel (pl. tesztekben, rögzített paraméterekkel vagy iránnyal).</summary>
+    public CharacterPhysicsModel(IMovementStateMachine stateMachine)
+    {
+        _stateMachine = stateMachine ?? throw new ArgumentNullException(nameof(stateMachine));
+    }
+
+    public double X => _stateMachine.X;
+
+    public double Y => _stateMachine.Y;
+
+    public MovementState State => _stateMachine.State;
+
+    public bool IsFacingLeft => _stateMachine.IsFacingLeft;
+
+    /// <summary>
+    /// A karakter áthelyezése (pl. a kezdőpozíció beállítása indításkor). A karakter innen esésbe kezd, nulla sebességgel.
+    /// </summary>
+    public void SetPosition(double x, double y) => _stateMachine.SetPosition(x, y);
 
     public void Update(
         TimeSpan deltaTime,
@@ -33,12 +67,13 @@ public class CharacterPhysicsModel : ICharacterPhysicsModel
         int characterWidth,
         int characterHeight)
     {
-        // TODO (Karakter / Fizika csapat):
-        // 1. Ha isMouseDown igaz és a kurzor a karakter befoglaló téglalapja [X - W/2 .. X + W/2, Y - H .. Y] fölött van -> State = Dragging.
-        // 2. Dragging: követi a kurzort; ha !isMouseDown -> State = Falling.
-        // 3. Falling: esik lefelé; ha van alatta platform -> ráilleszkedik (Y = platform.Y) és State = Idle (2 mp-ig).
-        // 4. Idle: folyamatosan ellenőrzi, van-e még alatta platform (ha nincs -> Falling); 2 mp után -> State = Walking random iránnyal.
-        // 5. Walking: folyamatosan ellenőrzi, van-e még alatta platform (ha nincs -> Falling);
-        //    a platform széléig (PlatformEdgeMargin = 10px ráhagyással) sétál, majd megfordul (IsFacingLeft = !IsFacingLeft).
+        _stateMachine.Step(new MovementInput(
+            deltaTime,
+            platforms,
+            cursorX,
+            cursorY,
+            isMouseDown,
+            characterWidth,
+            characterHeight));
     }
 }
