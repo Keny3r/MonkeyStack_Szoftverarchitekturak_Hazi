@@ -23,7 +23,10 @@ public class MovementStateMachineTests
         GravityPxPerSec2 = 1000.0,
         MaxFallSpeedPxPerSec = 500.0,
         MaxDeltaTime = TimeSpan.FromMilliseconds(100),
+        WalkSpeedPxPerSec = 120.0, // 0,1 s alatt 12 px
     };
+
+    private const double WalkStep = 12.0;
 
     private static readonly TimeSpan Tick = TimeSpan.FromMilliseconds(100);
 
@@ -59,6 +62,21 @@ public class MovementStateMachineTests
         _machine.SetPosition(x, Floor.Y);
         _machine.Step(Input(Tick, Floor));
         Assert.Equal(MovementState.Idle, _machine.State);
+    }
+
+    /// <summary>
+    /// A karaktert a platformra teszi, landoltatja és kivárja az Idle időt, így a megadott irányba néző Walking állapotba
+    /// kerül. Az átmenet lépésében még nem mozdul, ezért az X ekkor még a megadott érték.
+    /// </summary>
+    private void StartWalking(double x, bool facingLeft, PlatformSegment? platform = null)
+    {
+        var p = platform ?? Floor;
+        _nextFacingLeft = facingLeft;
+        _machine.SetPosition(x, p.Y);
+        StepTimes(1 + TicksUntilWalking, p);
+
+        Assert.Equal(MovementState.Walking, _machine.State);
+        Assert.Equal(x, _machine.X);
     }
 
     private void StepTimes(int count, params PlatformSegment[] platforms)
@@ -253,5 +271,108 @@ public class MovementStateMachineTests
 
         _machine.Step(Input(Tick, lower));
         Assert.Equal(MovementState.Walking, _machine.State);
+    }
+
+    // --- Walking ---
+    // Floor: X 0..200, ráhagyás 10 px => a séta határai 10 és 190.
+
+    [Theory]
+    [InlineData(false, 100.0 + WalkStep)]
+    [InlineData(true, 100.0 - WalkStep)]
+    public void Walking_MovesInFacingDirectionAtWalkSpeed(bool facingLeft, double expectedX)
+    {
+        StartWalking(x: 100, facingLeft);
+
+        _machine.Step(Input(Tick, Floor));
+
+        Assert.Equal(expectedX, _machine.X, Precision);
+        Assert.Equal(Floor.Y, _machine.Y);
+        Assert.Equal(MovementState.Walking, _machine.State);
+    }
+
+    [Theory]
+    [InlineData(185.0, false, 190.0)] // jobbra: 185 + 12 = 197 lenne, a 190-es határon megáll és megfordul
+    [InlineData(15.0, true, 10.0)]    // balra: 15 - 12 = 3 lenne, a 10-es határon megáll és megfordul
+    public void Walking_ReachesEdge_StopsAtMarginAndTurns(double startX, bool facingLeft, double expectedX)
+    {
+        StartWalking(startX, facingLeft);
+
+        _machine.Step(Input(Tick, Floor));
+
+        Assert.Equal(expectedX, _machine.X, Precision);
+        Assert.Equal(!facingLeft, _machine.IsFacingLeft);
+    }
+
+    [Fact]
+    public void Walking_AfterTurning_WalksBack()
+    {
+        StartWalking(x: 185, facingLeft: false);
+        _machine.Step(Input(Tick, Floor)); // 190, megfordul
+
+        _machine.Step(Input(Tick, Floor));
+
+        Assert.Equal(190.0 - WalkStep, _machine.X, Precision);
+        Assert.True(_machine.IsFacingLeft);
+    }
+
+    [Fact]
+    public void Walking_StartedInsideEdgeMargin_TurnsInPlaceWithoutJumping()
+    {
+        // A szél közelében (a ráhagyás sávjában) landolt: nem ugrik a 10-es határra, hanem helyben megfordul.
+        StartWalking(x: 3, facingLeft: true);
+
+        _machine.Step(Input(Tick, Floor));
+        Assert.Equal(3.0, _machine.X);
+        Assert.False(_machine.IsFacingLeft);
+
+        _machine.Step(Input(Tick, Floor));
+        Assert.Equal(3.0 + WalkStep, _machine.X, Precision);
+    }
+
+    [Fact]
+    public void Walking_PlatformNarrowerThanBothMargins_StaysPutWithoutFlipping()
+    {
+        // 15 px széles: a 2 x 10 px-es ráhagyás után nincs hová sétálni, ne forduljon minden lépésben.
+        var narrow = new PlatformSegment(Y: 100, LeftX: 0, RightX: 15);
+        StartWalking(x: 7, facingLeft: false, narrow);
+
+        StepTimes(10, narrow);
+
+        Assert.Equal(7.0, _machine.X);
+        Assert.False(_machine.IsFacingLeft);
+        Assert.Equal(MovementState.Walking, _machine.State);
+    }
+
+    [Fact]
+    public void Walking_PlatformDisappears_StartsFalling()
+    {
+        StartWalking(x: 100, facingLeft: false);
+
+        _machine.Step(Input(Tick));
+
+        Assert.Equal(MovementState.Falling, _machine.State);
+    }
+
+    [Fact]
+    public void Walking_LongWalk_StaysWithinMarginsAndKeepsTurning()
+    {
+        // 30 s séta: soha nem hagyja el a határokat, és oda-vissza jár (nem ragad be egy helyre).
+        StartWalking(x: 100, facingLeft: false);
+        int turns = 0;
+
+        for (int i = 0; i < 300; i++)
+        {
+            bool before = _machine.IsFacingLeft;
+            _machine.Step(Input(Tick, Floor));
+
+            Assert.InRange(_machine.X, 10.0, 190.0);
+            if (_machine.IsFacingLeft != before)
+            {
+                turns++;
+            }
+        }
+
+        Assert.Equal(MovementState.Walking, _machine.State);
+        Assert.True(turns >= 10, $"Csak {turns} fordulás történt.");
     }
 }

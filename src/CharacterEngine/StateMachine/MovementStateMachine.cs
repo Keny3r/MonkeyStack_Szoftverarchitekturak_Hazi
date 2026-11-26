@@ -66,7 +66,11 @@ public class MovementStateMachine : IMovementStateMachine
                 StepIdle(deltaTime, input.Platforms);
                 break;
 
-            // Walking, Dragging: a következő lépésekben (A7–A8).
+            case MovementState.Walking:
+                StepWalking(deltaTime, input.Platforms);
+                break;
+
+            // Dragging: a következő lépésben (A8).
             default:
                 break;
         }
@@ -102,7 +106,7 @@ public class MovementStateMachine : IMovementStateMachine
     private void StepIdle(TimeSpan deltaTime, IReadOnlyList<PlatformSegment> platforms)
     {
         // Előbb az alátámasztás: ha az ablakot elmozdították vagy bezárták alóla, az időzítőtől függetlenül leesik.
-        if (!TryStayOnPlatform(platforms))
+        if (!TryStayOnPlatform(platforms, out _))
         {
             return;
         }
@@ -115,19 +119,60 @@ public class MovementStateMachine : IMovementStateMachine
         }
     }
 
+    private void StepWalking(TimeSpan deltaTime, IReadOnlyList<PlatformSegment> platforms)
+    {
+        // Mint Idle-ben: ha az ablakot elmozdították, bezárták vagy egy másik ablak kitakarta a karakter alatti részt, leesik.
+        if (!TryStayOnPlatform(platforms, out var platform))
+        {
+            return;
+        }
+
+        double leftBound = platform.LeftX + CharacterPhysicsModel.PlatformEdgeMargin;
+        double rightBound = platform.RightX - CharacterPhysicsModel.PlatformEdgeMargin;
+
+        // A ráhagyásnál keskenyebb platformon nincs hová sétálni: a karakter egy helyben marad, és nem fordul meg
+        // minden lépésben (docs/mvc_architecture.md, "Séta"). A platform-szolgáltató ezeket eleve kiszűri, ez csak védelem.
+        if (leftBound > rightBound)
+        {
+            return;
+        }
+
+        double direction = IsFacingLeft ? -1.0 : 1.0;
+        double newX = X + (direction * _physics.Settings.WalkSpeedPxPerSec * deltaTime.TotalSeconds);
+
+        // A határon megfordul. Ha a karakter már a ráhagyás sávjában volt (pl. a szél közelében landolt), nem ugrik a
+        // határra, hanem helyben fordul meg, és onnan sétál vissza.
+        if (IsFacingLeft && newX <= leftBound)
+        {
+            newX = Math.Min(X, leftBound);
+            IsFacingLeft = false;
+        }
+        else if (!IsFacingLeft && newX >= rightBound)
+        {
+            newX = Math.Max(X, rightBound);
+            IsFacingLeft = true;
+        }
+
+        X = newX;
+    }
+
     /// <summary>
     /// Ellenőrzi, hogy a karakter talpa alatt van-e még platform. Ha van, a talppontot pontosan a peremre igazítja
     /// (a tűrésen belüli, pl. fél pixeles elmozdulást követi); ha nincs, esésbe váltja a karaktert.
     /// </summary>
+    /// <param name="platforms">Az aktuális platformok.</param>
+    /// <param name="support">A platform, amelyen a karakter áll (csak igaz visszatérési értéknél érvényes).</param>
     /// <returns>Igaz, ha a karakter a platformon maradt.</returns>
-    private bool TryStayOnPlatform(IReadOnlyList<PlatformSegment> platforms)
+    private bool TryStayOnPlatform(IReadOnlyList<PlatformSegment> platforms, out PlatformSegment support)
     {
-        if (_physics.FindSupportingPlatform(X, Y, platforms) is { } support)
+        if (_physics.FindSupportingPlatform(X, Y, platforms) is { } found)
         {
-            Y = support.Y;
+            support = found;
+            Y = found.Y;
             return true;
         }
 
+        support = default;
         StartFalling();
         return false;
     }
