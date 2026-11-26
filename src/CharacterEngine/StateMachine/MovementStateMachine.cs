@@ -24,6 +24,15 @@ public class MovementStateMachine : IMovementStateMachine
     /// <summary>Mióta tétlen a karakter (az Idle → Walking átmenethez). Minden landoláskor nullázódik.</summary>
     private TimeSpan _idleElapsed;
 
+    /// <summary>Le volt-e nyomva az egérgomb az előző lépésben (a lenyomás pillanatának felismeréséhez).</summary>
+    private bool _wasMouseDown;
+
+    /// <summary>A talppont és a kurzor távolsága a megragadás pillanatában; húzás közben ezt tartjuk.</summary>
+    private double _grabOffsetX;
+
+    /// <inheritdoc cref="_grabOffsetX"/>
+    private double _grabOffsetY;
+
     /// <param name="physics">A fizikai számításokat végző motor.</param>
     /// <param name="chooseFacingLeft">
     /// Az Idle → Walking átmenet véletlen kezdőiránya: igaz esetén balra indul. Alapértelmezetten egyenletes véletlen;
@@ -56,6 +65,15 @@ public class MovementStateMachine : IMovementStateMachine
 
         TimeSpan deltaTime = ClampDeltaTime(input.DeltaTime);
 
+        // Megragadás bármelyik állapotból (docs/mvc_architecture.md, "Megragadás"), ezért a switch előtt.
+        bool pressedNow = input.IsMouseDown && !_wasMouseDown;
+        _wasMouseDown = input.IsMouseDown;
+        if (State != MovementState.Dragging && pressedNow && IsCursorOnCharacter(input))
+        {
+            StartDragging(input.CursorX, input.CursorY);
+            return;
+        }
+
         switch (State)
         {
             case MovementState.Falling:
@@ -70,8 +88,8 @@ public class MovementStateMachine : IMovementStateMachine
                 StepWalking(deltaTime, input.Platforms);
                 break;
 
-            // Dragging: a következő lépésben (A8).
-            default:
+            case MovementState.Dragging:
+                StepDragging(input);
                 break;
         }
     }
@@ -154,6 +172,35 @@ public class MovementStateMachine : IMovementStateMachine
         }
 
         X = newX;
+    }
+
+    private void StepDragging(MovementInput input)
+    {
+        // Elengedéskor ott kezd esni, ahol elengedték, nyugalomból (a mozdulat lendületét nem viszi tovább).
+        if (!input.IsMouseDown)
+        {
+            StartFalling();
+            return;
+        }
+
+        X = input.CursorX + _grabOffsetX;
+        Y = input.CursorY + _grabOffsetY;
+    }
+
+    /// <summary>
+    /// Igaz, ha a kurzor a karakter befoglaló téglalapján van. Csak a lenyomás pillanatában vizsgáljuk: ha a gombot máshol
+    /// nyomták le (pl. egy ablakot húznak), és a kurzor lenyomott gombbal ér a karakterre, az nem ragadja meg.
+    /// </summary>
+    private bool IsCursorOnCharacter(MovementInput input) =>
+        _physics.HitTest(X, Y, input.CharacterWidth, input.CharacterHeight, input.CursorX, input.CursorY);
+
+    private void StartDragging(double cursorX, double cursorY)
+    {
+        // A megragadási pontot megtartjuk, így a karakter nem ugrik a kurzor alá, hanem onnan húzható, ahol megfogták.
+        _grabOffsetX = X - cursorX;
+        _grabOffsetY = Y - cursorY;
+        _velocityY = 0.0;
+        State = MovementState.Dragging;
     }
 
     /// <summary>

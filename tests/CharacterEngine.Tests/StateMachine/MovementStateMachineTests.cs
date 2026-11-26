@@ -48,6 +48,10 @@ public class MovementStateMachineTests
     private static MovementInput Input(TimeSpan deltaTime, params PlatformSegment[] platforms) =>
         new(deltaTime, platforms, CursorX: 0, CursorY: 0, IsMouseDown: false, CharacterWidth: 40, CharacterHeight: 60);
 
+    /// <summary>Egy lépés a megadott egérállapottal (karakterméret: 40 x 60).</summary>
+    private void StepWithMouse(double cursorX, double cursorY, bool isMouseDown, params PlatformSegment[] platforms) =>
+        _machine.Step(Input(Tick, platforms) with { CursorX = cursorX, CursorY = cursorY, IsMouseDown = isMouseDown });
+
     /// <summary>Egy lépést tesz, és visszaadja, mennyit mozdult lefelé a karakter.</summary>
     private double StepAndMeasureFall(params PlatformSegment[] platforms)
     {
@@ -374,5 +378,125 @@ public class MovementStateMachineTests
 
         Assert.Equal(MovementState.Walking, _machine.State);
         Assert.True(turns >= 10, $"Csak {turns} fordulás történt.");
+    }
+
+    // --- Dragging ---
+    // A karakter 40 x 60-as: talppont (X, Y) esetén a befoglaló téglalap X-20..X+20, Y-60..Y.
+
+    /// <summary>A karaktert a megadott állapotba hozza (a Floor platformon, illetve esésnél fölötte).</summary>
+    private void BringInto(MovementState state)
+    {
+        switch (state)
+        {
+            case MovementState.Falling:
+                _machine.SetPosition(x: 50, y: 0);
+                break;
+            case MovementState.Idle:
+                LandOnFloor(x: 50);
+                break;
+            case MovementState.Walking:
+                StartWalking(x: 100, facingLeft: false);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(state));
+        }
+
+        Assert.Equal(state, _machine.State);
+    }
+
+    [Theory]
+    [InlineData(MovementState.Falling)]
+    [InlineData(MovementState.Idle)]
+    [InlineData(MovementState.Walking)]
+    public void PressOnCharacter_FromAnyState_StartsDraggingWithoutMoving(MovementState from)
+    {
+        BringInto(from);
+        double x = _machine.X;
+        double y = _machine.Y;
+
+        StepWithMouse(cursorX: x, cursorY: y - 30, isMouseDown: true, Floor);
+
+        Assert.Equal(MovementState.Dragging, _machine.State);
+        Assert.Equal(x, _machine.X);
+        Assert.Equal(y, _machine.Y);
+    }
+
+    [Fact]
+    public void PressOutsideCharacter_DoesNotGrab()
+    {
+        LandOnFloor(x: 50); // téglalap: X 30..70, Y 40..100
+
+        StepWithMouse(cursorX: 150, cursorY: 70, isMouseDown: true, Floor);
+
+        Assert.Equal(MovementState.Idle, _machine.State);
+    }
+
+    [Fact]
+    public void ButtonPressedElsewhereThenMovedOntoCharacter_DoesNotGrab()
+    {
+        // Pl. a felhasználó egy ablakot húz, és közben a kurzor áthalad a karakteren: ez nem megragadás.
+        LandOnFloor(x: 50);
+        StepWithMouse(cursorX: 150, cursorY: 70, isMouseDown: true, Floor);
+
+        StepWithMouse(cursorX: 50, cursorY: 70, isMouseDown: true, Floor);
+
+        Assert.Equal(MovementState.Idle, _machine.State);
+    }
+
+    [Fact]
+    public void Dragging_FollowsCursorKeepingGrabPoint()
+    {
+        LandOnFloor(x: 50);                                     // talppont (50, 100)
+        StepWithMouse(cursorX: 60, cursorY: 70, isMouseDown: true, Floor); // megfogva a talppont felett 30, jobbra 10 px-re
+
+        StepWithMouse(cursorX: 300, cursorY: 400, isMouseDown: true, Floor);
+
+        Assert.Equal(290.0, _machine.X, Precision);
+        Assert.Equal(430.0, _machine.Y, Precision);
+        Assert.Equal(MovementState.Dragging, _machine.State);
+    }
+
+    [Fact]
+    public void Dragging_IgnoresGravityAndPlatforms()
+    {
+        // Húzás közben a levegőben is ott marad, ahol a kurzor van, és platformra sem landol.
+        LandOnFloor(x: 50);
+        StepWithMouse(cursorX: 50, cursorY: 70, isMouseDown: true, Floor);
+
+        for (int i = 0; i < 10; i++)
+        {
+            StepWithMouse(cursorX: 50, cursorY: -500, isMouseDown: true);
+        }
+
+        Assert.Equal(-470.0, _machine.Y, Precision);
+        Assert.Equal(MovementState.Dragging, _machine.State);
+    }
+
+    [Fact]
+    public void Release_StartsFallingFromRestWhereReleased()
+    {
+        LandOnFloor(x: 50);
+        StepWithMouse(cursorX: 50, cursorY: 70, isMouseDown: true, Floor);
+        StepWithMouse(cursorX: 200, cursorY: -100, isMouseDown: true); // talppont (200, -70)
+
+        StepWithMouse(cursorX: 200, cursorY: -100, isMouseDown: false);
+
+        Assert.Equal(MovementState.Falling, _machine.State);
+        Assert.Equal(200.0, _machine.X, Precision);
+        Assert.Equal(-70.0, _machine.Y, Precision);
+        Assert.Equal(FirstStepFromRest, StepAndMeasureFall(), Precision);
+    }
+
+    [Fact]
+    public void AfterRelease_NewPressGrabsAgain()
+    {
+        LandOnFloor(x: 50);
+        StepWithMouse(cursorX: 50, cursorY: 70, isMouseDown: true, Floor);
+        StepWithMouse(cursorX: 50, cursorY: 70, isMouseDown: false, Floor); // elengedve, a peremen áll
+        Assert.Equal(MovementState.Falling, _machine.State);
+
+        StepWithMouse(cursorX: 50, cursorY: 70, isMouseDown: true, Floor);
+
+        Assert.Equal(MovementState.Dragging, _machine.State);
     }
 }
