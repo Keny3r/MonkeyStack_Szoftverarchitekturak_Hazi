@@ -25,3 +25,4 @@ A karakter overlay logikája.
 - [Karakter és Fizika MVC terv](../mvc_architecture.md#karakter-és-fizika)
 - [Belső komponens felbontás és architektúra terv](./architecture.md)
 - [Fizika és mozgási állapotgép](./physics.md)
+- [Overlay ablak és egérbemenet](./overlay_window.md)
